@@ -22,7 +22,6 @@ object Lox {
 
     // Indicate an error in the exit code
     if (hadError) sys.exit(65)
-
   }
 
   private def runPrompt(): Unit = {
@@ -42,9 +41,8 @@ object Lox {
     tokens.foreach(println)
   }
 
-  def error(line: Int, message: String): Unit = {
+  def error(line: Int, message: String): Unit =
     report(line, "", message)
-  }
 
   // Separate code that generates and reports errors
   private def report(line: Int, where: String, message: String): Unit = {

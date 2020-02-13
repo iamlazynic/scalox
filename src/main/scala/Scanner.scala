@@ -115,13 +115,11 @@ class Scanner(private val source: String) {
     true
   }
 
-  private def next: Option[Char] = {
+  private def next: Option[Char] =
     if (isAtEnd) None else Some(source.charAt(current))
-  }
 
-  private def nexnext: Option[Char] = {
+  private def nexnext: Option[Char] =
     if (current + 1 >= source.length) None else Some(source.charAt(current + 1))
-  }
 
   private def isDigit(c: Option[Char]): Boolean = {
     c match {
@@ -187,7 +185,6 @@ class Scanner(private val source: String) {
   }
 
   private def scanNumber(): Unit = {
-
     while (isDigit(next)) advance()
 
     if (next.contains('.') && isDigit(nexnext)) {
@@ -209,7 +206,6 @@ class Scanner(private val source: String) {
     }
   }
 
-  private def isAtEnd: Boolean = {
+  private def isAtEnd: Boolean =
     current >= source.length
-  }
 }
