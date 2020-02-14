@@ -2,12 +2,7 @@ import TokenType.TokenType
 
 import scala.collection.immutable.HashMap
 
-class Scanner(private val source: String) {
-  private var tokens = new Array[Token](0)
-  private var start = 0
-  private var current = 0
-  private var line = 1
-
+object Scanner {
   private val keywords = HashMap[String, TokenType](
     ("and", TokenType.AND),
     ("class", TokenType.CLASS),
@@ -38,15 +33,22 @@ class Scanner(private val source: String) {
     ('t', 0x09),
     ('v', 0x0b),
   )
+}
 
-  def scanTokens(): Array[Token] = {
+class Scanner(private val source: String) {
+  private var tokens  = new Array[Token](0)
+  private var start   = 0
+  private var current = 0
+  private var line    = 1
+
+  def scan(): Array[Token] = {
     while (!isAtEnd) {
       // Are at the beginning of the next lexeme
       start = current
       scanToken()
     }
 
-    val eof: Token = Token(TokenType.EOF, "", null, line)
+    val eof: Token = Token(TokenType.EOF, "", None, line)
     tokens = tokens :+ eof
     tokens
   }
@@ -136,14 +138,14 @@ class Scanner(private val source: String) {
     }
   }
 
-  private def addToken(typ: TokenType, literal: Any = null): Unit = {
+  private def addToken(typ: TokenType, literal: Option[Any] = None): Unit = {
     val text: String = source.substring(start, current)
-    val tok: Token = Token(typ, text, literal, line)
+    val tok: Token   = Token(typ, text, literal, line)
     tokens = tokens :+ tok
   }
 
   private def scanString(): Unit = {
-    var value: String = ""
+    var value: String     = ""
     var continue: Boolean = true
 
     while (continue) {
@@ -158,7 +160,7 @@ class Scanner(private val source: String) {
               advance()
             case Some(c) =>
               advance()
-              val newc = escapes.get(c) match {
+              val newc = Scanner.escapes.get(c) match {
                 case None       => c
                 case Some(byte) => byte.toChar
               }
@@ -181,7 +183,7 @@ class Scanner(private val source: String) {
     // Consume the closing '"'
     advance()
 
-    addToken(TokenType.STRING, value)
+    addToken(TokenType.STRING, Some(value))
   }
 
   private def scanNumber(): Unit = {
@@ -192,7 +194,7 @@ class Scanner(private val source: String) {
     }
 
     val value = source.substring(start, current).toDouble
-    addToken(TokenType.NUMBER, value)
+    addToken(TokenType.NUMBER, Some(value))
   }
 
   private def scanIdentifier(): Unit = {
@@ -200,7 +202,7 @@ class Scanner(private val source: String) {
 
     // See if it is a reserved word (keyword)
     val text: String = source.substring(start, current)
-    keywords.get(text) match {
+    Scanner.keywords.get(text) match {
       case None      => addToken(TokenType.IDENTIFIER)
       case Some(typ) => addToken(typ)
     }

@@ -15,7 +15,7 @@ object Lox {
   }
 
   private def runFile(path: String): Unit = {
-    val buffered = Source.fromFile(path)
+    val buffered     = Source.fromFile(path)
     val text: String = buffered.getLines.toString()
     buffered.close
     run(text)
@@ -35,14 +35,25 @@ object Lox {
   }
 
   private def run(source: String): Unit = {
-    val scanner = new Scanner(source)
-    val tokens: Array[Token] = scanner.scanTokens()
+    val scanner               = new Scanner(source)
+    val tokens: Array[Token]  = scanner.scan()
+    val parser                = new Parser(tokens)
+    val optExpr: Option[Expr] = parser.parse()
 
-    tokens.foreach(println)
+    // Stop if there's any syntax error
+    optExpr match {
+      case None       =>
+      case Some(expr) => println(expr)
+    }
   }
 
   def error(line: Int, message: String): Unit =
     report(line, "", message)
+
+  def error(tok: Token, message: String): Unit = {
+    if (tok.typ == TokenType.EOF) report(tok.line, " at end", message)
+    else report(tok.line, s" at '${tok.lexeme}'", message)
+  }
 
   // Separate code that generates and reports errors
   private def report(line: Int, where: String, message: String): Unit = {
