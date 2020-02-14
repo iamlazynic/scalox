@@ -1,7 +1,9 @@
 import scala.io.{Source, StdIn}
 
 object Lox {
-  var hadError = false
+  private val interpreter: Interpreter = new Interpreter
+  private var hadError = false
+  private var hadRuntimeError = false
 
   def main(args: Array[String]): Unit = {
     if (args.length > 1) {
@@ -22,6 +24,7 @@ object Lox {
 
     // Indicate an error in the exit code
     if (hadError) sys.exit(65)
+    if (hadRuntimeError) sys.exit(70)
   }
 
   private def runPrompt(): Unit = {
@@ -43,7 +46,7 @@ object Lox {
     // Stop if there's any syntax error
     optExpr match {
       case None       =>
-      case Some(expr) => println(expr)
+      case Some(expr) => interpreter.interpret(expr)
     }
   }
 
@@ -53,6 +56,11 @@ object Lox {
   def error(tok: Token, message: String): Unit = {
     if (tok.typ == TokenType.EOF) report(tok.line, " at end", message)
     else report(tok.line, s" at '${tok.lexeme}'", message)
+  }
+
+  def error(err: RuntimeError): Unit = {
+    Console.err.println(s"${err.message}\n[line ${err.token.line}]")
+    hadRuntimeError = true
   }
 
   // Separate code that generates and reports errors

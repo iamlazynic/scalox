@@ -1,7 +1,7 @@
 import TokenType.TokenType
 
 object Parser {
-  private class ParsingException extends RuntimeException
+  private class ParsingError extends RuntimeException
 }
 
 class Parser(tokens: Array[Token]) {
@@ -11,7 +11,7 @@ class Parser(tokens: Array[Token]) {
     try {
       Some(expression)
     } catch {
-      case _: Parser.ParsingException => None
+      case _: Parser.ParsingError => None
     }
   }
 
@@ -19,13 +19,14 @@ class Parser(tokens: Array[Token]) {
 
   // series → equality ( "," equality )*
   private def series: Expr = {
-    var expr: Expr = equality
+    val left: Expr = equality
     if (matc(TokenType.COMMA)) {
-      val op: Token = previous
+      val op: Token   = previous
       val right: Expr = series
-      expr = Binary(expr, op, right)
+      Binary(left, op, right)
+    } else {
+      left
     }
-    expr
   }
 
   // equality → comparison ( ( "!=" | "==" ) comparison )*
@@ -131,11 +132,9 @@ class Parser(tokens: Array[Token]) {
     }
   }
 
-  private def matc(types: TokenType*): Boolean = {
-    types.find(check) match {
-      case None    => false
-      case Some(_) => advance(); true
-    }
+  private def matc(types: TokenType*): Boolean = types.find(check) match {
+    case None    => false
+    case Some(_) => advance(); true
   }
 
   private def check(typ: TokenType): Boolean =
@@ -160,9 +159,9 @@ class Parser(tokens: Array[Token]) {
     else throw error(next, message)
   }
 
-  private def error(token: Token, message: String): Parser.ParsingException = {
+  private def error(token: Token, message: String): Parser.ParsingError = {
     Lox.error(token, message)
-    new Parser.ParsingException
+    new Parser.ParsingError
   }
 
   private def synchronize(): Unit = {
