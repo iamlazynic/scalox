@@ -15,7 +15,18 @@ class Parser(tokens: Array[Token]) {
     }
   }
 
-  def expression: Expr = equality
+  def expression: Expr = series
+
+  // series → equality ( "," equality )*
+  private def series: Expr = {
+    var expr: Expr = equality
+    if (matc(TokenType.COMMA)) {
+      val op: Token = previous
+      val right: Expr = series
+      expr = Binary(expr, op, right)
+    }
+    expr
+  }
 
   // equality → comparison ( ( "!=" | "==" ) comparison )*
   private def equality: Expr = {
@@ -87,16 +98,37 @@ class Parser(tokens: Array[Token]) {
 
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
   private def primary: Expr = {
-    if (matc(TokenType.FALSE)) Literal(Some(false))
-    else if (matc(TokenType.TRUE)) Literal(Some(true))
-    else if (matc(TokenType.NIL)) Literal(None)
+    if (matc(TokenType.FALSE))
+      Literal(Some(false))
+    else if (matc(TokenType.TRUE))
+      Literal(Some(true))
+    else if (matc(TokenType.NIL))
+      Literal(None)
     else if (matc(TokenType.NUMBER, TokenType.STRING))
       Literal(previous.literal)
     else if (matc(TokenType.LEFT_PAREN)) {
       val expr: Expr = expression
       consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
       Grouping(expr)
-    } else throw error(next, "Expect expression.")
+    } else if (matc(
+                 TokenType.COMMA,
+                 TokenType.BANG_EQUAL,
+                 TokenType.EQUAL_EQUAL,
+                 TokenType.GREATER,
+                 TokenType.GREATER_EQUAL,
+                 TokenType.LESS,
+                 TokenType.LESS_EQUAL,
+                 TokenType.PLUS,
+                 TokenType.MINUS,
+                 TokenType.SLASH,
+                 TokenType.STAR
+               )) {
+      val symb = previous.lexeme
+      expression
+      throw error(next, s"Binary operator '$symb' expects a left-hand operand.")
+    } else {
+      throw error(next, "Expect expression.")
+    }
   }
 
   private def matc(types: TokenType*): Boolean = {
