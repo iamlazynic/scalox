@@ -1,21 +1,96 @@
 import TokenType.TokenType
 
 object Parser {
-  private class ParsingError extends RuntimeException
+  private class ParsingError extends RuntimeException()
 }
 
 class Parser(tokens: Array[Token]) {
   private var current = 0
 
-  def parse(): Option[Expr] = {
+  def parse(): Array[Stmt] = {
+    var statements = new Array[Stmt](0)
+    while (!isAtEnd) {
+      declaration match {
+        case None       =>
+        case Some(stmt) => statements = statements :+ stmt
+      }
+    }
+    statements
+  }
+
+  // declaration → var | statement
+  private def declaration: Option[Stmt] = {
+    // FIXME: scala exception should not happen when there is parsing error
     try {
-      Some(expression)
+      if (matc(TokenType.VAR)) Some(varDeclaration)
+      else Some(statement)
     } catch {
-      case _: Parser.ParsingError => None
+      case _: Parser.ParsingError => synchronize(); None
     }
   }
 
-  def expression: Expr = series
+  // statement → print | expression | block
+  private def statement: Stmt = {
+    if (matc(TokenType.PRINT)) printStmt
+    else if (matc(TokenType.LEFT_BRACE)) blockStmt
+    else expressionStmt
+  }
+
+  // print → "print" expression ";"
+  private def printStmt: Stmt = {
+    val value = expression
+    consume(TokenType.SEMICOLON, "Expect ';' after value.")
+    Print(value)
+  }
+
+  private def blockStmt: Stmt = {
+    var statements = new Array[Stmt](0)
+    while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
+      declaration match {
+        case None =>
+        case Some(decl) => statements = statements :+ decl
+      }
+    }
+    consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
+    Block(statements)
+  }
+
+  // expression → expression ";"
+  private def expressionStmt: Stmt = {
+    val expr = expression
+    consume(TokenType.SEMICOLON, "Expect ';' after expression.")
+    Expression(expr)
+  }
+
+  // var → "var" identifier "=" expression
+  private def varDeclaration: Stmt = {
+    val name: Token = consume(TokenType.IDENTIFIER, "Expect variable name.")
+    val initializer: Option[Expr] =
+      if (matc(TokenType.EQUAL)) Some(expression)
+      else None
+
+    consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.")
+    Var(name, initializer)
+  }
+
+  // expression → assignment
+  private def expression: Expr = assignment
+
+  // assignment → identifier "=" assignment | series
+  private def assignment: Expr = {
+    val expr: Expr = series
+    if (matc(TokenType.EQUAL)) {
+      val equals: Token = previous
+      val value: Expr   = assignment
+
+      expr match {
+        case Variable(name) => Assign(name, value)
+        case _              => error(equals, "Invalid assignment target."); expr
+      }
+    } else {
+      expr
+    }
+  }
 
   // series → equality ( "," equality )*
   private def series: Expr = {
@@ -107,6 +182,8 @@ class Parser(tokens: Array[Token]) {
       Literal(None)
     else if (matc(TokenType.NUMBER, TokenType.STRING))
       Literal(previous.literal)
+    else if (matc(TokenType.IDENTIFIER))
+      Variable(previous)
     else if (matc(TokenType.LEFT_PAREN)) {
       val expr: Expr = expression
       consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
@@ -154,7 +231,7 @@ class Parser(tokens: Array[Token]) {
   private def previous: Token =
     tokens(current - 1)
 
-  private def consume(typ: TokenType, message: String): Unit = {
+  private def consume(typ: TokenType, message: String): Token = {
     if (check(typ)) advance()
     else throw error(next, message)
   }

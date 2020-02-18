@@ -1,17 +1,36 @@
 class Interpreter {
-  def interpret(expr: Expr): Unit = {
+  val top = new Environment()
+
+  def interpret(statements: Array[Stmt]): Unit = {
     try {
-      val value: Option[Any] = evaluate(expr)
-      println(stringify(value))
+      statements.foreach(execute(top))
     } catch {
       case e: RuntimeError => Lox.error(e)
     }
   }
 
-  private def evaluate(expr: Expr): Option[Any] = expr match {
+  private def execute(env: Environment)(stmt: Stmt): Unit = stmt match {
+    case Block(statements) =>
+      val local = new Environment(Some(env))
+      statements.foreach(execute(local))
+    case Expression(expr) => evaluate(env)(expr)
+    case Print(expr)      => println(stringify(evaluate(env)(expr)))
+    case Var(name, initializer) =>
+      val value = initializer match {
+        case None       => None
+        case Some(expr) => evaluate(env)(expr)
+      }
+      env.define(name.lexeme, value)
+  }
+
+  private def evaluate(env: Environment)(expr: Expr): Option[Any] = expr match {
+    case Assign(name, value) =>
+      val valu = evaluate(env)(value)
+      env.assign(name, valu)
+      valu
     case Binary(left, op, right) =>
-      val lv    = evaluate(left)
-      val rv    = evaluate(right)
+      val lv    = evaluate(env)(left)
+      val rv    = evaluate(env)(right)
       val strip = tok => stripNumber(op, tok)
       op.typ match {
         case TokenType.MINUS => Some(strip(lv) - strip(rv))
@@ -35,15 +54,15 @@ class Interpreter {
         case TokenType.EQUAL_EQUAL   => Some(lv == rv)
         case TokenType.COMMA         => rv
       }
-    case Grouping(expr) => evaluate(expr)
+    case Grouping(expr) => evaluate(env)(expr)
     case Literal(value) => value
     case Unary(op, right) =>
-      val rv = evaluate(right)
+      val rv = evaluate(env)(right)
       op.typ match {
         case TokenType.MINUS => Some(-stripNumber(op, rv))
         case TokenType.BANG  => Some(!isTruthy(rv))
       }
-
+    case Variable(name) => env.get(name)
   }
 
   private def stripNumber(operator: Token, operand: Option[Any]): Double = operand match {

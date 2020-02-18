@@ -1,8 +1,8 @@
 import scala.io.{Source, StdIn}
 
 object Lox {
-  private val interpreter: Interpreter = new Interpreter
-  private var hadError = false
+  private val interpreter     = new Interpreter
+  private var hadError        = false
   private var hadRuntimeError = false
 
   def main(args: Array[String]): Unit = {
@@ -38,16 +38,15 @@ object Lox {
   }
 
   private def run(source: String): Unit = {
-    val scanner               = new Scanner(source)
-    val tokens: Array[Token]  = scanner.scan()
-    val parser                = new Parser(tokens)
-    val optExpr: Option[Expr] = parser.parse()
+    val scanner                 = new Scanner(source)
+    val tokens: Array[Token]    = scanner.scan()
+    val parser                  = new Parser(tokens)
+    val statements: Array[Stmt] = parser.parse()
 
     // Stop if there's any syntax error
-    optExpr match {
-      case None       =>
-      case Some(expr) => interpreter.interpret(expr)
-    }
+    if (hadError) return
+
+    interpreter.interpret(statements)
   }
 
   def error(line: Int, message: String): Unit =
