@@ -14,5 +14,5 @@ sealed trait Expr {
 
 case class Binary(left: Expr, op: Token, right: Expr) extends Expr
 case class Grouping(expr: Expr)                       extends Expr
-case class Literal(valu: Option[Any])                 extends Expr
+case class Literal(value: Option[Any])                extends Expr
 case class Unary(op: Token, right: Expr)              extends Expr
