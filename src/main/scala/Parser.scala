@@ -33,9 +33,10 @@ class Parser(tokens: Array[Token]) {
     else statement
   }
 
-  // statement → print | expression | block
+  // statement → print | if | block | expression
   private def statement: Stmt = {
     if (matc(TokenType.PRINT)) printStmt
+    else if (matc(TokenType.IF)) ifStmt
     else if (matc(TokenType.LEFT_BRACE)) blockStmt
     else expressionStmt
   }
@@ -45,6 +46,16 @@ class Parser(tokens: Array[Token]) {
     val value = expression
     consume(TokenType.SEMICOLON, "Expect ';' after value.")
     Print(value)
+  }
+
+  // if → "if" "(" expression ")" statement ( "else" statement )?
+  private def ifStmt: Stmt = {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.")
+    val cond = expression
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after if condition.")
+    val brThen = statement
+    val brElse = if (matc(TokenType.ELSE)) Some(statement) else None
+    If(cond, brThen, brElse)
   }
 
   private def blockStmt: Stmt = {
@@ -99,9 +110,9 @@ class Parser(tokens: Array[Token]) {
     }
   }
 
-  // series → equality ( "," equality )*
+  // series → logical_or ( "," logical_or )*
   private def series: Expr = {
-    val left: Expr = equality
+    val left: Expr = or()
     if (matc(TokenType.COMMA)) {
       val op: Token   = previous
       val right: Expr = series
@@ -111,76 +122,47 @@ class Parser(tokens: Array[Token]) {
     }
   }
 
+  // logical_or → logic_and ( "or" logic_and )*
+  private def or(): Expr =
+    patternAxALeft(and, TokenType.OR)
+
+  // logical_and → equality ( "or" equality )*
+  private def and(): Expr =
+    patternAxALeft(equality, TokenType.AND)
+
   // equality → comparison ( ( "!=" | "==" ) comparison )*
-  private def equality: Expr = {
-    // left
-    var expr: Expr = comparison
-    // ( ... )*
-    while (matc(TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)) {
-      val op: Token   = previous
-      val right: Expr = comparison
-      expr = Binary(expr, op, right)
-    }
-    expr
-  }
+  private def equality(): Expr =
+    patternAxALeft(comparison, TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)
 
   // comparison → addition ( ( ">" | ">=" | "<" | "<=" ) addition )*
-  private def comparison: Expr = {
-    // left
-    var expr: Expr = addition
-    // ( ... )*
-    while (matc(
-             TokenType.GREATER,
-             TokenType.GREATER_EQUAL,
-             TokenType.LESS,
-             TokenType.LESS_EQUAL
-           )) {
-      val op: Token   = previous
-      val right: Expr = addition
-      expr = Binary(expr, op, right)
-    }
-    expr
-  }
+  private def comparison(): Expr =
+    patternAxALeft(addition,
+                   TokenType.GREATER,
+                   TokenType.GREATER_EQUAL,
+                   TokenType.LESS,
+                   TokenType.LESS_EQUAL)
 
   // addition → multiplication ( ( "-" | "+" ) multiplication )*
-  private def addition: Expr = {
-    // left
-    var expr: Expr = multiplication
-    // ( ... )*
-    while (matc(TokenType.PLUS, TokenType.MINUS)) {
-      val op: Token   = previous
-      val right: Expr = multiplication
-      expr = Binary(expr, op, right)
-    }
-    expr
-  }
+  private def addition(): Expr =
+    patternAxALeft(multiplication, TokenType.PLUS, TokenType.MINUS)
 
   // multiplication → unary ( ( "/" | "*" ) unary )*
-  private def multiplication: Expr = {
-    // left
-    var expr: Expr = unary
-    // ( ... )*
-    while (matc(TokenType.SLASH, TokenType.STAR)) {
-      val op: Token   = previous
-      val right: Expr = unary
-      expr = Binary(expr, op, right)
-    }
-    expr
-  }
+  private def multiplication(): Expr =
+    patternAxALeft(unary, TokenType.SLASH, TokenType.STAR)
 
   // unary → ( "!" | "-" ) unary | primary
-  private def unary: Expr = {
+  private def unary(): Expr = {
     if (matc(TokenType.BANG, TokenType.MINUS)) {
       val op: Token   = previous
-      val right: Expr = unary
+      val right: Expr = unary()
       Unary(op, right)
     } else {
-      primary
+      primary()
     }
   }
 
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
-  private def primary: Expr = {
+  private def primary(): Expr = {
     if (matc(TokenType.FALSE))
       Literal(Some(false))
     else if (matc(TokenType.TRUE))
@@ -214,6 +196,18 @@ class Parser(tokens: Array[Token]) {
     } else {
       throw error(next, "Expect expression.")
     }
+  }
+
+  private def patternAxALeft(A: () => Expr, x: TokenType*): Expr = {
+    // left
+    var expr: Expr = A()
+    // ( ... )*
+    while (matc(x: _*)) {
+      val op: Token   = previous
+      val right: Expr = A()
+      expr = Binary(expr, op, right)
+    }
+    expr
   }
 
   private def matc(types: TokenType*): Boolean = types.find(check) match {

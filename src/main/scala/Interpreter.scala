@@ -17,7 +17,10 @@ class Interpreter {
       val local = new Environment(Some(env))
       statements.foreach(execute(local))
     case Expression(expr) => evaluate(env)(expr)
-    case Print(expr)      => println(stringify(evaluate(env)(expr)))
+    case If(cond, brThen, brElse) =>
+      if (isTruthy(evaluate(env)(cond))) execute(env)(brThen)
+      else brElse.foreach(execute(env))
+    case Print(expr) => println(stringify(evaluate(env)(expr)))
     case Var(name, initializer) =>
       val value = initializer match {
         case None       => None
@@ -32,31 +35,36 @@ class Interpreter {
       env.assign(name, valu)
       valu
     case Binary(left, op, right) =>
-      val lv    = evaluate(env)(left)
-      val rv    = evaluate(env)(right)
-      val strip = tok => stripNumber(op, tok)
+      val lv = evaluate(env)(left)
       op.typ match {
-        case TokenType.MINUS => Some(strip(lv) - strip(rv))
-        case TokenType.PLUS =>
-          (lv, rv) match {
-            case (Some(ld: Double), Some(rd: Double)) => Some(ld + rd)
-            case (Some(ls: String), Some(rs: String)) => Some(ls + rs)
-            case (Some(ls: String), Some(rd: Double)) => Some(ls + rd)
-            case _ =>
-              val msg =
-                "Operands must be pair (number, number), (string, string), or (string, number)."
-              throw RuntimeError(op, msg)
+        case TokenType.OR  => if (isTruthy(lv)) lv else evaluate(env)(right)
+        case TokenType.AND => if (!isTruthy(lv)) lv else evaluate(env)(right)
+        case typ =>
+          val rv    = evaluate(env)(right)
+          val strip = tok => stripNumber(op, tok)
+          typ match {
+            case TokenType.MINUS => Some(strip(lv) - strip(rv))
+            case TokenType.PLUS =>
+              (lv, rv) match {
+                case (Some(ld: Double), Some(rd: Double)) => Some(ld + rd)
+                case (Some(ls: String), Some(rs: String)) => Some(ls + rs)
+                case (Some(ls: String), Some(rd: Double)) => Some(ls + rd)
+                case _ =>
+                  val msg =
+                    "Operands must be pair (number, number), (string, string), or (string, number)."
+                  throw RuntimeError(op, msg)
+              }
+            case TokenType.STAR          => Some(strip(lv) * strip(rv))
+            case TokenType.SLASH         => Some(strip(lv) / strip(rv))
+            case TokenType.GREATER       => Some(strip(lv) > strip(rv))
+            case TokenType.GREATER_EQUAL => Some(strip(lv) >= strip(rv))
+            case TokenType.LESS          => Some(strip(lv) < strip(rv))
+            case TokenType.LESS_EQUAL    => Some(strip(lv) <= strip(rv))
+            case TokenType.BANG_EQUAL    => Some(lv != rv)
+            case TokenType.EQUAL_EQUAL   => Some(lv == rv)
+            case TokenType.COMMA         => rv
+            // TODO: exhausted match?
           }
-        case TokenType.STAR          => Some(strip(lv) * strip(rv))
-        case TokenType.SLASH         => Some(strip(lv) / strip(rv))
-        case TokenType.GREATER       => Some(strip(lv) > strip(rv))
-        case TokenType.GREATER_EQUAL => Some(strip(lv) >= strip(rv))
-        case TokenType.LESS          => Some(strip(lv) < strip(rv))
-        case TokenType.LESS_EQUAL    => Some(strip(lv) <= strip(rv))
-        case TokenType.BANG_EQUAL    => Some(lv != rv)
-        case TokenType.EQUAL_EQUAL   => Some(lv == rv)
-        case TokenType.COMMA         => rv
-        // TODO: exhausted match?
       }
     case Grouping(expr) => evaluate(env)(expr)
     case Literal(value) => value
