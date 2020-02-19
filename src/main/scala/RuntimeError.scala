@@ -1,1 +1,1 @@
-case class RuntimeError (token: Token, message: String) extends RuntimeException(message)
+case class RuntimeError(token: Token, message: String) extends RuntimeException(message)

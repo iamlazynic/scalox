@@ -1,9 +1,12 @@
 class Interpreter {
   val top = new Environment()
 
-  def interpret(statements: Array[Stmt]): Unit = {
+  def interpret(item: Either[Array[Stmt], Expr]): Unit = {
     try {
-      statements.foreach(execute(top))
+      item match {
+        case Left(statements) => statements.foreach(execute(top))
+        case Right(expr)      => println(stringify(evaluate(top)(expr)))
+      }
     } catch {
       case e: RuntimeError => Lox.error(e)
     }
@@ -53,6 +56,7 @@ class Interpreter {
         case TokenType.BANG_EQUAL    => Some(lv != rv)
         case TokenType.EQUAL_EQUAL   => Some(lv == rv)
         case TokenType.COMMA         => rv
+        // TODO: exhausted match?
       }
     case Grouping(expr) => evaluate(env)(expr)
     case Literal(value) => value
@@ -61,6 +65,7 @@ class Interpreter {
       op.typ match {
         case TokenType.MINUS => Some(-stripNumber(op, rv))
         case TokenType.BANG  => Some(!isTruthy(rv))
+        // TODO: exhausted match?
       }
     case Variable(name) => env.get(name)
   }

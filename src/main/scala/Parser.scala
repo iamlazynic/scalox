@@ -1,31 +1,36 @@
 import TokenType.TokenType
 
 object Parser {
-  private class ParsingError extends RuntimeException()
+  private class ParsingError(tok: Token, msg: String) extends RuntimeException(msg) {
+    def token: Token = tok
+  }
 }
 
 class Parser(tokens: Array[Token]) {
   private var current = 0
 
-  def parse(): Array[Stmt] = {
+  def parse(repl: Boolean): Either[Array[Stmt], Expr] = {
     var statements = new Array[Stmt](0)
     while (!isAtEnd) {
-      declaration match {
-        case None       =>
-        case Some(stmt) => statements = statements :+ stmt
+      try {
+        statements = statements :+ declaration
+      } catch {
+        case err: Parser.ParsingError =>
+          if (repl && statements.isEmpty && err.getMessage == "Expect ';' after expression.") {
+            current = 0
+            return Right(expression)
+          }
+          Lox.error(err.token, err.getMessage)
+          synchronize()
       }
     }
-    statements
+    Left(statements)
   }
 
   // declaration → var | statement
-  private def declaration: Option[Stmt] = {
-    try {
-      if (matc(TokenType.VAR)) Some(varDeclaration)
-      else Some(statement)
-    } catch {
-      case _: Parser.ParsingError => synchronize(); None
-    }
+  private def declaration: Stmt = {
+    if (matc(TokenType.VAR)) varDeclaration
+    else statement
   }
 
   // statement → print | expression | block
@@ -45,9 +50,12 @@ class Parser(tokens: Array[Token]) {
   private def blockStmt: Stmt = {
     var statements = new Array[Stmt](0)
     while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
-      declaration match {
-        case None =>
-        case Some(decl) => statements = statements :+ decl
+      try {
+        statements = statements :+ declaration
+      } catch {
+        case err: Parser.ParsingError =>
+          Lox.error(err.token, err.getMessage)
+          synchronize()
       }
     }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
@@ -236,8 +244,7 @@ class Parser(tokens: Array[Token]) {
   }
 
   private def error(token: Token, message: String): Parser.ParsingError = {
-    Lox.error(token, message)
-    new Parser.ParsingError
+    new Parser.ParsingError(token, message)
   }
 
   private def synchronize(): Unit = {

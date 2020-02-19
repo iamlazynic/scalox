@@ -20,7 +20,7 @@ object Lox {
     val buffered     = Source.fromFile(path)
     val text: String = buffered.getLines.mkString
     buffered.close
-    run(text)
+    run(text, repl = false)
 
     // Indicate an error in the exit code
     if (hadError) sys.exit(65)
@@ -31,22 +31,22 @@ object Lox {
     while (true) {
       printf("> ")
       val text = StdIn.readLine
-      run(text)
+      run(text, repl = true)
 
       hadError = false
     }
   }
 
-  private def run(source: String): Unit = {
-    val scanner                 = new Scanner(source)
-    val tokens: Array[Token]    = scanner.scan()
-    val parser                  = new Parser(tokens)
-    val statements: Array[Stmt] = parser.parse()
+  private def run(source: String, repl: Boolean): Unit = {
+    val scanner              = new Scanner(source)
+    val tokens: Array[Token] = scanner.scan()
+    val parser               = new Parser(tokens)
+    val result               = parser.parse(repl)
 
     // Stop if there's any syntax error
     if (hadError) return
 
-    interpreter.interpret(statements)
+    interpreter.interpret(result)
   }
 
   def error(line: Int, message: String): Unit =
