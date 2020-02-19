@@ -20,7 +20,6 @@ class Parser(tokens: Array[Token]) {
 
   // declaration → var | statement
   private def declaration: Option[Stmt] = {
-    // FIXME: scala exception should not happen when there is parsing error
     try {
       if (matc(TokenType.VAR)) Some(varDeclaration)
       else Some(statement)
@@ -256,6 +255,7 @@ class Parser(tokens: Array[Token]) {
         case TokenType.RETURN => return
         case TokenType.VAR    => return
         case TokenType.WHILE  => return
+        case _                =>
       }
 
       advance()
