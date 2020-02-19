@@ -5,3 +5,4 @@ case class Expression(expr: Expr)                             extends Stmt
 case class If(cond: Expr, brThen: Stmt, brElse: Option[Stmt]) extends Stmt
 case class Print(expr: Expr)                                  extends Stmt
 case class Var(name: Token, initializer: Option[Expr])        extends Stmt
+case class While(cond: Expr, body: Stmt)                      extends Stmt

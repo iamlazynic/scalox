@@ -33,10 +33,12 @@ class Parser(tokens: Array[Token]) {
     else statement
   }
 
-  // statement → print | if | block | expression
+  // statement → print | if | while | for | block | expression
   private def statement: Stmt = {
     if (matc(TokenType.PRINT)) printStmt
     else if (matc(TokenType.IF)) ifStmt
+    else if (matc(TokenType.WHILE)) whileStmt
+    else if (matc(TokenType.FOR)) forStmt
     else if (matc(TokenType.LEFT_BRACE)) blockStmt
     else expressionStmt
   }
@@ -56,6 +58,40 @@ class Parser(tokens: Array[Token]) {
     val brThen = statement
     val brElse = if (matc(TokenType.ELSE)) Some(statement) else None
     If(cond, brThen, brElse)
+  }
+
+  // whileStmt → "while" "(" expression ")" statement
+  private def whileStmt: Stmt = {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.")
+    val cond = expression
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after while condition.")
+    val body = statement
+    While(cond, body)
+  }
+
+  // forStmt → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement
+  private def forStmt: Stmt = {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.")
+    val initializer: Option[Stmt] =
+      if (matc(TokenType.SEMICOLON)) None
+      else if (matc(TokenType.VAR)) Some(varDeclaration)
+      else Some(expressionStmt)
+    val cond: Option[Expr] =
+      if (check(TokenType.SEMICOLON)) None
+      else Some(expression)
+    consume(TokenType.SEMICOLON, "Expect ';' after loop condition.")
+    val increment: Option[Expr]=
+      if (check(TokenType.RIGHT_PAREN)) None
+      else Some(expression)
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after for clauses.")
+    var body = statement
+
+    // desugaring
+    increment.foreach(expr => body = Block(Array(body, Expression(expr))))
+    body = While(cond.getOrElse(Literal(Some(true))), body)
+    initializer.foreach(stmt => body = Block(Array(stmt, body)))
+
+    body
   }
 
   private def blockStmt: Stmt = {
@@ -248,15 +284,10 @@ class Parser(tokens: Array[Token]) {
       if (previous.typ == TokenType.SEMICOLON) return
 
       next.typ match {
-        case TokenType.CLASS  => return
-        case TokenType.FUN    => return
-        case TokenType.FOR    => return
-        case TokenType.IF     => return
-        case TokenType.PRINT  => return
-        case TokenType.RETURN => return
-        case TokenType.VAR    => return
-        case TokenType.WHILE  => return
-        case _                =>
+        case TokenType.CLASS | TokenType.FUN | TokenType.FOR | TokenType.IF | TokenType.PRINT |
+            TokenType.RETURN | TokenType.VAR | TokenType.WHILE =>
+          return
+        case _ =>
       }
 
       advance()

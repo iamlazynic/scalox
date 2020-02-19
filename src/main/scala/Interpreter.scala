@@ -16,17 +16,23 @@ class Interpreter {
     case Block(statements) =>
       val local = new Environment(Some(env))
       statements.foreach(execute(local))
-    case Expression(expr) => evaluate(env)(expr)
-    case If(cond, brThen, brElse) =>
-      if (isTruthy(evaluate(env)(cond))) execute(env)(brThen)
-      else brElse.foreach(execute(env))
-    case Print(expr) => println(stringify(evaluate(env)(expr)))
-    case Var(name, initializer) =>
-      val value = initializer match {
-        case None       => None
-        case Some(expr) => evaluate(env)(expr)
+    case stmt =>
+      val eval: Expr => Option[Any] = evaluate(env)
+      val exec: Stmt => Unit        = execute(env)
+      stmt match {
+        case Expression(expr) =>
+          eval(expr)
+        case If(cond, brThen, brElse) =>
+          if (isTruthy(eval(cond))) exec(brThen)
+          else brElse.foreach(exec)
+        case While(cond, body) =>
+          while (isTruthy(eval(cond))) exec(body)
+        case Print(expr) =>
+          println(stringify(eval(expr)))
+        case Var(name, initializer) =>
+          val value = initializer match { case None => None; case Some(expr) => eval(expr) }
+          env.define(name.lexeme, value)
       }
-      env.define(name.lexeme, value)
   }
 
   private def evaluate(env: Environment)(expr: Expr): Option[Any] = expr match {
@@ -50,9 +56,9 @@ class Interpreter {
                 case (Some(ls: String), Some(rs: String)) => Some(ls + rs)
                 case (Some(ls: String), Some(rd: Double)) => Some(ls + rd)
                 case _ =>
-                  val msg =
-                    "Operands must be pair (number, number), (string, string), or (string, number)."
-                  throw RuntimeError(op, msg)
+                  throw RuntimeError(
+                    op,
+                    "Operands must be pair (number, number), (string, string), or (string, number).")
               }
             case TokenType.STAR          => Some(strip(lv) * strip(rv))
             case TokenType.SLASH         => Some(strip(lv) / strip(rv))
@@ -84,9 +90,8 @@ class Interpreter {
   }
 
   private def isTruthy(x: Option[Any]): Boolean = x match {
-    case None        => false
-    case Some(false) => false
-    case _           => true
+    case None | Some(false) => false
+    case _                  => true
   }
 
   private def stringify(value: Option[Any]): String = value match {
