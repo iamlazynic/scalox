@@ -5,6 +5,7 @@ import scala.collection.immutable.HashMap
 object Scanner {
   private val keywords = HashMap[String, TokenType](
     ("and", TokenType.AND),
+    ("break", TokenType.BREAK),
     ("class", TokenType.CLASS),
     ("else", TokenType.ELSE),
     ("false", TokenType.FALSE),

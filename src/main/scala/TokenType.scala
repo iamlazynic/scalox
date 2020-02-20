@@ -6,7 +6,7 @@ object TokenType extends Enumeration {
   BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS,
   LESS_EQUAL, // One or two character tokens.
   IDENTIFIER, STRING, NUMBER, // Literals.
-  AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR,
+  AND, BREAK, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR,
   WHILE, // Keywords.
   EOF // EOF
   = Value

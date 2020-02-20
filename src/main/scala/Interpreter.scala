@@ -1,5 +1,6 @@
 class Interpreter {
-  val top = new Environment()
+  private val top      = new Environment()
+  private var continue = true
 
   def interpret(item: Either[Array[Stmt], Expr]): Unit = {
     try {
@@ -12,27 +13,37 @@ class Interpreter {
     }
   }
 
-  private def execute(env: Environment)(stmt: Stmt): Unit = stmt match {
-    case Block(statements) =>
-      val local = new Environment(Some(env))
-      statements.foreach(execute(local))
-    case stmt =>
-      val eval: Expr => Terminal = evaluate(env)
-      val exec: Stmt => Unit     = execute(env)
-      stmt match {
-        case Expression(expr) =>
-          eval(expr)
-        case If(cond, brThen, brElse) =>
-          if (isTruthy(eval(cond))) exec(brThen)
-          else brElse.foreach(exec)
-        case While(cond, body) =>
-          while (isTruthy(eval(cond))) exec(body)
-        case Print(expr) =>
-          println(eval(expr))
-        case Var(name, initializer) =>
-          val value = initializer match { case None => TNil(); case Some(expr) => eval(expr) }
-          env.define(name.lexeme, value)
-      }
+  private def execute(env: Environment)(stmt: Stmt): Unit = {
+    val eval: Expr => Terminal = evaluate(env)
+    val exec: Stmt => Unit     = execute(env)
+    stmt match {
+      case Block(statements) =>
+        val local = new Environment(Some(env))
+        continue = executeSequence(local)(statements)
+      case Break() =>
+        continue = false
+      case Expression(expr) =>
+        eval(expr)
+      case If(cond, brThen, brElse) =>
+        if (isTruthy(eval(cond))) exec(brThen)
+        else brElse.foreach(exec)
+      case While(cond, body) =>
+        while (continue && isTruthy(eval(cond))) exec(body)
+        continue = true
+      case Print(expr) =>
+        println(eval(expr))
+      case Var(name, initializer) =>
+        val value = initializer match { case None => TNil(); case Some(expr) => eval(expr) }
+        env.define(name.lexeme, value)
+    }
+  }
+
+  private def executeSequence(env: Environment)(statements: Array[Stmt]): Boolean = {
+    for (stmt <- statements) {
+      execute(env)(stmt)
+      if (!continue) return false
+    }
+    true
   }
 
   private def evaluate(env: Environment)(expr: Expr): Terminal = expr match {
