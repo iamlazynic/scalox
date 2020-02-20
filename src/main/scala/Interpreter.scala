@@ -52,9 +52,9 @@ class Interpreter {
             case TokenType.MINUS => TNumber(strip(lv) - strip(rv))
             case TokenType.PLUS =>
               (lv, rv) match {
-                case (TNumber(ld: Double), TNumber(rd: Double)) => TNumber(ld + rd)
-                case (TString(ls: String), TString(rs: String)) => TString(ls + rs)
-                case (TString(ls: String), TNumber(rd: Double)) => TString(ls + rd)
+                case (TNumber(ld), TNumber(rd)) => TNumber(ld + rd)
+                case (TString(ls), TString(rs)) => TString(ls + rs)
+                case (l: TString, r: TNumber)   => TString(l.toString + r.toString)
                 case _ =>
                   throw RuntimeError(
                     op,
