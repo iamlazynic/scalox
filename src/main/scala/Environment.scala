@@ -1,12 +1,12 @@
 import scala.collection.mutable
 
 class Environment(enclosing: Option[Environment] = None) {
-  private val values = new mutable.HashMap[String, Option[Any]]()
+  private val values = new mutable.HashMap[String, Terminal]()
 
-  def define(name: String, value: Option[Any]): Unit =
+  def define(name: String, value: Terminal): Unit =
     values.put(name, value)
 
-  def get(name: Token): Option[Any] = values.get(name.lexeme) match {
+  def get(name: Token): Terminal = values.get(name.lexeme) match {
     case None =>
       enclosing match {
         case None      => throw RuntimeError(name, s"Undefined variable '${name.lexeme}'.")
@@ -15,7 +15,7 @@ class Environment(enclosing: Option[Environment] = None) {
     case Some(value) => value
   }
 
-  def assign(name: Token, value: Option[Any]): Unit = {
+  def assign(name: Token, value: Terminal): Unit = {
     if (values.contains(name.lexeme)) {
       values.update(name.lexeme, value)
     } else {

@@ -138,7 +138,7 @@ class Scanner(private val source: String) {
     }
   }
 
-  private def addToken(typ: TokenType, literal: Option[Any] = None): Unit = {
+  private def addToken(typ: TokenType, literal: Option[Terminal] = None): Unit = {
     val text: String = source.substring(start, current)
     val tok: Token   = Token(typ, text, literal, line)
     tokens = tokens :+ tok
@@ -183,7 +183,7 @@ class Scanner(private val source: String) {
     // Consume the closing '"'
     advance()
 
-    addToken(TokenType.STRING, Some(value))
+    addToken(TokenType.STRING, Some(TString(value)))
   }
 
   private def scanNumber(): Unit = {
@@ -194,7 +194,7 @@ class Scanner(private val source: String) {
     }
 
     val value = source.substring(start, current).toDouble
-    addToken(TokenType.NUMBER, Some(value))
+    addToken(TokenType.NUMBER, Some(TNumber(value)))
   }
 
   private def scanIdentifier(): Unit = {

@@ -80,7 +80,7 @@ class Parser(tokens: Array[Token]) {
       if (check(TokenType.SEMICOLON)) None
       else Some(expression)
     consume(TokenType.SEMICOLON, "Expect ';' after loop condition.")
-    val increment: Option[Expr]=
+    val increment: Option[Expr] =
       if (check(TokenType.RIGHT_PAREN)) None
       else Some(expression)
     consume(TokenType.RIGHT_PAREN, "Expect ')' after for clauses.")
@@ -88,7 +88,7 @@ class Parser(tokens: Array[Token]) {
 
     // desugaring
     increment.foreach(expr => body = Block(Array(body, Expression(expr))))
-    body = While(cond.getOrElse(Literal(Some(true))), body)
+    body = While(cond.getOrElse(Literal(TBoolean(true))), body)
     initializer.foreach(stmt => body = Block(Array(stmt, body)))
 
     body
@@ -200,13 +200,13 @@ class Parser(tokens: Array[Token]) {
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
   private def primary(): Expr = {
     if (matc(TokenType.FALSE))
-      Literal(Some(false))
+      Literal(TBoolean(false))
     else if (matc(TokenType.TRUE))
-      Literal(Some(true))
+      Literal(TBoolean(true))
     else if (matc(TokenType.NIL))
-      Literal(None)
+      Literal(TNil())
     else if (matc(TokenType.NUMBER, TokenType.STRING))
-      Literal(previous.literal)
+      Literal(previous.literal.get)
     else if (matc(TokenType.IDENTIFIER))
       Variable(previous)
     else if (matc(TokenType.LEFT_PAREN)) {
