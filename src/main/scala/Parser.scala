@@ -40,9 +40,7 @@ class Parser(tokens: Array[Token]) {
     else if (matc(TokenType.WHILE)) whileStmt()
     else if (matc(TokenType.FOR)) forStmt()
     else if (matc(TokenType.LEFT_BRACE)) blockStmt(loop)
-    else if (matc(TokenType.BREAK))
-      if (loop) breakStmt()
-      else throw error(next, "Break statements are not expected outside loops.")
+    else if (loop && matc(TokenType.BREAK)) breakStmt()
     else expressionStmt()
   }
 
@@ -238,6 +236,8 @@ class Parser(tokens: Array[Token]) {
       val symb = previous.lexeme
       expression()
       throw error(next, s"Binary operator '$symb' expects a left-hand operand.")
+    } else if (matc(TokenType.BREAK)) {
+      throw error(next, "Break statements are not expected outside loops.")
     } else {
       throw error(next, "Expect expression.")
     }

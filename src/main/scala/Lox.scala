@@ -18,7 +18,7 @@ object Lox {
 
   private def runFile(path: String): Unit = {
     val buffered     = Source.fromFile(path)
-    val text: String = buffered.getLines.mkString
+    val text: String = buffered.getLines.mkString("\n")
     buffered.close
     run(text, repl = false)
 
