@@ -1,5 +1,5 @@
 object Interpreter {
-  case class Return(value: Terminal) extends RuntimeException()
+  private case class Return(value: Terminal) extends RuntimeException()
 }
 
 class Interpreter {
@@ -32,14 +32,7 @@ class Interpreter {
       case Expression(expr) =>
         eval(expr)
       case Function(name, params, body) =>
-        def call(args: Seq[Terminal]): Terminal = {
-          val local = new Environment(Some(env))
-          for (i <- params.indices) local.define(params(i).lexeme, args(i))
-          try executeSequence(local)(body)
-          catch { case returned: Interpreter.Return => return returned.value }
-          TNil()
-        }
-        env.define(name.lexeme, TFunction(params.length, call))
+        env.define(name.lexeme, TFunction(params.length, closure(env)(params, body)))
       case If(cond, brThen, brElse) =>
         if (isTruthy(eval(cond))) exec(brThen)
         else brElse.foreach(exec)
@@ -54,6 +47,15 @@ class Interpreter {
         val value = initializer match { case None => TNil(); case Some(expr) => eval(expr) }
         env.define(name.lexeme, value)
     }
+  }
+
+  private def closure(env: Environment)(params: Array[Token], body: Array[Stmt])(
+      args: Seq[Terminal]): Terminal = {
+    val local = new Environment(Some(env))
+    for (i <- params.indices) local.define(params(i).lexeme, args(i))
+    try executeSequence(local)(body)
+    catch { case returned: Interpreter.Return => return returned.value }
+    TNil()
   }
 
   private def executeSequence(env: Environment)(statements: Array[Stmt]): Boolean = {
@@ -110,6 +112,8 @@ class Interpreter {
         case _ => throw RuntimeError(paren, "Can only call functions and classes.")
       }
     case Grouping(expr) => evaluate(env)(expr)
+    case Lambda(params, body) =>
+      TFunction(params.length, closure(env)(params, body))
     case Literal(value) => value
     case Unary(op, right) =>
       val rv = evaluate(env)(right)

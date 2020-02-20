@@ -5,7 +5,7 @@ sealed trait Terminal {
       if (s.endsWith(".0")) s.substring(0, s.length - 2) else s
     case TString(value)         => value
     case TBoolean(value)        => value.toString
-    case TFunction(arity, func) => func.toString
+    case TFunction(arity, func) => s"<fun ($arity)>"
     case TNil()                 => "nil"
   }
 }

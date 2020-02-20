@@ -5,6 +5,7 @@ sealed trait Expr {
       case Binary(left, op, right)   => parenthesize(op.lexeme, left, right)
       case Call(callee, paren, args) => s"(apply $callee (${args.mkString(",")}))"
       case Grouping(expr)            => parenthesize("group", expr)
+      case Lambda(params, body)      => s"<lambda (${params.length})>"
       case Literal(value)            => value.toString
       case Unary(op, right)          => parenthesize(op.lexeme, right)
       case Variable(name)            => s"(var ${name.lexeme})"
@@ -19,6 +20,7 @@ case class Assign(name: Token, value: Expr)                    extends Expr
 case class Binary(left: Expr, op: Token, right: Expr)          extends Expr
 case class Call(callee: Expr, paren: Token, args: Array[Expr]) extends Expr
 case class Grouping(expr: Expr)                                extends Expr
+case class Lambda(params: Array[Token], body: Array[Stmt])     extends Expr
 case class Literal(value: Terminal)                            extends Expr
 case class Unary(op: Token, right: Expr)                       extends Expr
 case class Variable(name: Token)                               extends Expr

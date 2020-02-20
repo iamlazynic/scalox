@@ -1,7 +1,9 @@
 import TokenType.TokenType
 
+import scala.reflect.ClassTag
+
 object Parser {
-  case class ParsingError(token: Token, msg: String) extends RuntimeException(msg)
+  private case class ParsingError(token: Token, msg: String) extends RuntimeException(msg)
 }
 
 class Parser(tokens: Array[Token]) {
@@ -27,24 +29,21 @@ class Parser(tokens: Array[Token]) {
 
   // declaration → var | function | statement
   private def declaration(loop: Boolean): Stmt = {
-    if (matc(TokenType.VAR)) varDeclaration()
-    else if (matc(TokenType.FUN)) function(loop, "function")
-    else statement(loop)
+    if (matc(TokenType.VAR)) return varDeclaration()
+    if (matc(TokenType.FUN))
+      if (next.typ == TokenType.IDENTIFIER) return function("function")
+      else current = current - 1 // FIXME: stepping back, terrible?
+    statement(loop)
   }
 
-  private def function(loop: Boolean, kind: String): Stmt = {
+  // function → "fun" IDENTIFIER "(" parameters? ")" block
+  private def function(kind: String): Stmt = {
     val name: Token = consume(TokenType.IDENTIFIER, s"Expect $kind name.")
     consume(TokenType.LEFT_PAREN, s"Expect '(' after $kind name.")
-    var params = new Array[Token](0)
-    if (!check(TokenType.RIGHT_PAREN)) {
-      do {
-        if (params.length >= 255) Lox.error(next, "Cannot have more than 255 parameters.")
-        params = params :+ consume(TokenType.IDENTIFIER, "Expect parameter name.")
-      } while (matc(TokenType.COMMA))
-    }
-    consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
+    val params: Array[Token] =
+      patternCommaSep("parameters", () => consume(TokenType.IDENTIFIER, "Expect parameter name."))
     consume(TokenType.LEFT_BRACE, s"Expect '{' before $kind body.")
-    Function(name, params, block(loop))
+    Function(name, params, block(false))
   }
 
   // statement → print | if | while | for | block | return | expression
@@ -216,40 +215,57 @@ class Parser(tokens: Array[Token]) {
   private def multiplication(): Expr =
     patternAxALeft(unary, TokenType.SLASH, TokenType.STAR)
 
-  // unary → ( "!" | "-" ) unary | call
+  // unary → ( "!" | "-" ) unary | lambda
   private def unary(): Expr = {
     if (matc(TokenType.BANG, TokenType.MINUS)) {
       val op: Token   = previous
       val right: Expr = unary()
       Unary(op, right)
     } else {
+      lambda()
+    }
+  }
+
+  // lambda → "fun" "(" parameters? ")" block | call
+  private def lambda(): Expr = {
+    if (matc(TokenType.FUN)) {
+      consume(TokenType.LEFT_PAREN, s"Expect '(' after fun in a lambda.")
+      val params: Array[Token] =
+        patternCommaSep("parameters", () => consume(TokenType.IDENTIFIER, "Expect parameter name."))
+      consume(TokenType.LEFT_BRACE, s"Expect '{' before lambda body.")
+      Lambda(params, block(false))
+    } else {
       call()
     }
   }
 
-  // call → primary ( "(" arguments? ")" )*
+  // call      → primary ( "(" arguments? ")" )*
+  // arguments → expression ( "," expression )*
   private def call(): Expr = {
     var expr: Expr = primary()
     while (true) {
-      if (matc(TokenType.LEFT_PAREN)) expr = finishCall(expr)
-      else return expr
+      if (matc(TokenType.LEFT_PAREN)) {
+        val args: Array[Expr] = patternCommaSep("arguments", expression)
+        expr = Call(expr, previous, args)
+      } else {
+        return expr
+      }
     }
     expr
   }
 
-  private def finishCall(callee: Expr): Expr = {
-    var args = new Array[Expr](0)
+  private def patternCommaSep[T](itemKind: String, eat: () => T)(
+      implicit m: ClassTag[T]): Array[T] = {
+    var items = new Array[T](0)
     if (!check(TokenType.RIGHT_PAREN)) {
       do {
-        if (args.length >= 255) Lox.error(next, "Cannot have more than 255 arguments.")
-        args = args :+ expression()
+        if (items.length >= 255) Lox.error(next, s"Cannot have more than 255 $itemKind.")
+        items = items :+ eat()
       } while (matc(TokenType.COMMA))
     }
-    val paren: Token = consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
-    Call(callee, paren, args)
+    consume(TokenType.RIGHT_PAREN, s"Expect ')' after $itemKind.")
+    items
   }
-
-  // arguments → expression ( "," expression )*
 
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
   private def primary(): Expr = {
