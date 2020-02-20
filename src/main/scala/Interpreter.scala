@@ -1,6 +1,13 @@
+object Interpreter {
+  case class Return(value: Terminal) extends RuntimeException()
+}
+
 class Interpreter {
   private val top      = new Environment()
   private var continue = true
+
+  top.define("clock",
+             TFunction(0, (_: Seq[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
 
   def interpret(item: Either[Array[Stmt], Expr]): Unit = {
     try {
@@ -24,6 +31,15 @@ class Interpreter {
         continue = false
       case Expression(expr) =>
         eval(expr)
+      case Function(name, params, body) =>
+        def call(args: Seq[Terminal]): Terminal = {
+          val local = new Environment(Some(env))
+          for (i <- params.indices) local.define(params(i).lexeme, args(i))
+          try executeSequence(local)(body)
+          catch { case returned: Interpreter.Return => return returned.value }
+          TNil()
+        }
+        env.define(name.lexeme, TFunction(params.length, call))
       case If(cond, brThen, brElse) =>
         if (isTruthy(eval(cond))) exec(brThen)
         else brElse.foreach(exec)
@@ -32,6 +48,8 @@ class Interpreter {
         continue = true
       case Print(expr) =>
         println(eval(expr))
+      case Return(_, value) =>
+        throw Interpreter.Return(value match { case Some(v) => eval(v); case None => TNil() })
       case Var(name, initializer) =>
         val value = initializer match { case None => TNil(); case Some(expr) => eval(expr) }
         env.define(name.lexeme, value)
@@ -82,6 +100,14 @@ class Interpreter {
             case TokenType.COMMA         => rv
             // TODO: exhausted match?
           }
+      }
+    case Call(callee, paren, args) =>
+      evaluate(env)(callee) match {
+        case TFunction(arity, func) =>
+          if (args.length != arity)
+            throw RuntimeError(paren, s"Expected $arity arguments but got ${args.length}.")
+          func(args.map(evaluate(env)))
+        case _ => throw RuntimeError(paren, "Can only call functions and classes.")
       }
     case Grouping(expr) => evaluate(env)(expr)
     case Literal(value) => value

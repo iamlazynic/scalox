@@ -1,9 +1,7 @@
 import TokenType.TokenType
 
 object Parser {
-  private class ParsingError(tok: Token, msg: String) extends RuntimeException(msg) {
-    def token: Token = tok
-  }
+  case class ParsingError(token: Token, msg: String) extends RuntimeException(msg)
 }
 
 class Parser(tokens: Array[Token]) {
@@ -27,20 +25,37 @@ class Parser(tokens: Array[Token]) {
     Left(statements)
   }
 
-  // declaration → var | statement
+  // declaration → var | function | statement
   private def declaration(loop: Boolean): Stmt = {
     if (matc(TokenType.VAR)) varDeclaration()
+    else if (matc(TokenType.FUN)) function(loop, "function")
     else statement(loop)
   }
 
-  // statement → print | if | while | for | block | expression
+  private def function(loop: Boolean, kind: String): Stmt = {
+    val name: Token = consume(TokenType.IDENTIFIER, s"Expect $kind name.")
+    consume(TokenType.LEFT_PAREN, s"Expect '(' after $kind name.")
+    var params = new Array[Token](0)
+    if (!check(TokenType.RIGHT_PAREN)) {
+      do {
+        if (params.length >= 255) Lox.error(next, "Cannot have more than 255 parameters.")
+        params = params :+ consume(TokenType.IDENTIFIER, "Expect parameter name.")
+      } while (matc(TokenType.COMMA))
+    }
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
+    consume(TokenType.LEFT_BRACE, s"Expect '{' before $kind body.")
+    Function(name, params, block(loop))
+  }
+
+  // statement → print | if | while | for | block | return | expression
   private def statement(loop: Boolean): Stmt = {
     if (matc(TokenType.PRINT)) printStmt()
     else if (matc(TokenType.IF)) ifStmt(loop)
     else if (matc(TokenType.WHILE)) whileStmt()
     else if (matc(TokenType.FOR)) forStmt()
-    else if (matc(TokenType.LEFT_BRACE)) blockStmt(loop)
+    else if (matc(TokenType.LEFT_BRACE)) Block(block(loop))
     else if (loop && matc(TokenType.BREAK)) breakStmt()
+    else if (matc(TokenType.RETURN)) returnStmt()
     else expressionStmt()
   }
 
@@ -95,7 +110,7 @@ class Parser(tokens: Array[Token]) {
     body
   }
 
-  private def blockStmt(loop: Boolean): Stmt = {
+  private def block(loop: Boolean): Array[Stmt] = {
     var statements = new Array[Stmt](0)
     while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
       try {
@@ -107,13 +122,21 @@ class Parser(tokens: Array[Token]) {
       }
     }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
-    Block(statements)
+    statements
   }
 
   // break → "break" ";"
   private def breakStmt(): Stmt = {
     consume(TokenType.SEMICOLON, "Expect ';' after 'break'.")
     Break()
+  }
+
+  // returnStmt → "return" expression? ";"
+  private def returnStmt(): Stmt = {
+    val keyword: Token      = previous
+    val value: Option[Expr] = if (check(TokenType.SEMICOLON)) None else Some(expression())
+    consume(TokenType.SEMICOLON, "Expect ';' after return value.")
+    Return(keyword, value)
   }
 
   // expression → expression ";"
@@ -193,16 +216,40 @@ class Parser(tokens: Array[Token]) {
   private def multiplication(): Expr =
     patternAxALeft(unary, TokenType.SLASH, TokenType.STAR)
 
-  // unary → ( "!" | "-" ) unary | primary
+  // unary → ( "!" | "-" ) unary | call
   private def unary(): Expr = {
     if (matc(TokenType.BANG, TokenType.MINUS)) {
       val op: Token   = previous
       val right: Expr = unary()
       Unary(op, right)
     } else {
-      primary()
+      call()
     }
   }
+
+  // call → primary ( "(" arguments? ")" )*
+  private def call(): Expr = {
+    var expr: Expr = primary()
+    while (true) {
+      if (matc(TokenType.LEFT_PAREN)) expr = finishCall(expr)
+      else return expr
+    }
+    expr
+  }
+
+  private def finishCall(callee: Expr): Expr = {
+    var args = new Array[Expr](0)
+    if (!check(TokenType.RIGHT_PAREN)) {
+      do {
+        if (args.length >= 255) Lox.error(next, "Cannot have more than 255 arguments.")
+        args = args :+ expression()
+      } while (matc(TokenType.COMMA))
+    }
+    val paren: Token = consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
+    Call(callee, paren, args)
+  }
+
+  // arguments → expression ( "," expression )*
 
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
   private def primary(): Expr = {
