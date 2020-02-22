@@ -37,12 +37,12 @@ object Scanner {
 }
 
 class Scanner(private val source: String) {
-  private var tokens  = new Array[Token](0)
-  private var start   = 0
-  private var current = 0
-  private var line    = 1
+  private var tokens: Vector[Token] = Vector()
+  private var start                 = 0
+  private var current               = 0
+  private var line                  = 1
 
-  def scan(): Array[Token] = {
+  def scan(): Vector[Token] = {
     while (!isAtEnd) {
       // Are at the beginning of the next lexeme
       start = current

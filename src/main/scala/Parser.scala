@@ -1,16 +1,14 @@
 import TokenType.TokenType
 
-import scala.reflect.ClassTag
-
 object Parser {
   private case class ParsingError(token: Token, msg: String) extends RuntimeException(msg)
 }
 
-class Parser(tokens: Array[Token]) {
+class Parser(tokens: Vector[Token]) {
   private var current = 0
 
-  def parse(repl: Boolean): Either[Array[Stmt], Expr] = {
-    var statements = new Array[Stmt](0)
+  def parse(repl: Boolean): Either[Vector[Stmt], Expr] = {
+    var statements: Vector[Stmt] = Vector()
     while (!isAtEnd) {
       try {
         statements = statements :+ declaration(loop = false)
@@ -40,7 +38,7 @@ class Parser(tokens: Array[Token]) {
   private def function(kind: String): Stmt = {
     val name: Token = consume(TokenType.IDENTIFIER, s"Expect $kind name.")
     consume(TokenType.LEFT_PAREN, s"Expect '(' after $kind name.")
-    val params: Array[Token] =
+    val params =
       patternCommaSep("parameters", () => consume(TokenType.IDENTIFIER, "Expect parameter name."))
     consume(TokenType.LEFT_BRACE, s"Expect '{' before $kind body.")
     Function(name, params, block(false))
@@ -102,15 +100,15 @@ class Parser(tokens: Array[Token]) {
     var body = statement(loop = true)
 
     // desugaring
-    increment.foreach(expr => body = Block(Array(body, Expression(expr))))
+    increment.foreach(expr => body = Block(Vector(body, Expression(expr))))
     body = While(cond.getOrElse(Literal(TBoolean(true))), body)
-    initializer.foreach(stmt => body = Block(Array(stmt, body)))
+    initializer.foreach(stmt => body = Block(Vector(stmt, body)))
 
     body
   }
 
-  private def block(loop: Boolean): Array[Stmt] = {
-    var statements = new Array[Stmt](0)
+  private def block(loop: Boolean): Vector[Stmt] = {
+    var statements: Vector[Stmt] = Vector()
     while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
       try {
         statements = statements :+ declaration(loop)
@@ -230,7 +228,7 @@ class Parser(tokens: Array[Token]) {
   private def lambda(): Expr = {
     if (matc(TokenType.FUN)) {
       consume(TokenType.LEFT_PAREN, s"Expect '(' after fun in a lambda.")
-      val params: Array[Token] =
+      val params =
         patternCommaSep("parameters", () => consume(TokenType.IDENTIFIER, "Expect parameter name."))
       consume(TokenType.LEFT_BRACE, s"Expect '{' before lambda body.")
       Lambda(params, block(false))
@@ -245,7 +243,7 @@ class Parser(tokens: Array[Token]) {
     var expr: Expr = primary()
     while (true) {
       if (matc(TokenType.LEFT_PAREN)) {
-        val args: Array[Expr] = patternCommaSep("arguments", expression)
+        val args = patternCommaSep("arguments", expression)
         expr = Call(expr, previous, args)
       } else {
         return expr
@@ -254,9 +252,8 @@ class Parser(tokens: Array[Token]) {
     expr
   }
 
-  private def patternCommaSep[T](itemKind: String, eat: () => T)(
-      implicit m: ClassTag[T]): Array[T] = {
-    var items = new Array[T](0)
+  private def patternCommaSep[T](itemKind: String, eat: () => T): Vector[T] = {
+    var items: Vector[T] = Vector()
     if (!check(TokenType.RIGHT_PAREN)) {
       do {
         if (items.length >= 255) Lox.error(next, s"Cannot have more than 255 $itemKind.")
@@ -346,7 +343,7 @@ class Parser(tokens: Array[Token]) {
   }
 
   private def error(token: Token, message: String): Parser.ParsingError = {
-    new Parser.ParsingError(token, message)
+    Parser.ParsingError(token, message)
   }
 
   private def synchronize(): Unit = {

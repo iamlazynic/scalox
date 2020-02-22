@@ -16,11 +16,11 @@ sealed trait Expr {
     s"($name ${expressions.mkString(" ")})"
 }
 
-case class Assign(name: Token, value: Expr)                    extends Expr
-case class Binary(left: Expr, op: Token, right: Expr)          extends Expr
-case class Call(callee: Expr, paren: Token, args: Array[Expr]) extends Expr
-case class Grouping(expr: Expr)                                extends Expr
-case class Lambda(params: Array[Token], body: Array[Stmt])     extends Expr
-case class Literal(value: Terminal)                            extends Expr
-case class Unary(op: Token, right: Expr)                       extends Expr
-case class Variable(name: Token)                               extends Expr
+case class Assign(name: Token, value: Expr)                     extends Expr
+case class Binary(left: Expr, op: Token, right: Expr)           extends Expr
+case class Call(callee: Expr, paren: Token, args: Vector[Expr]) extends Expr
+case class Grouping(expr: Expr)                                 extends Expr
+case class Lambda(params: Vector[Token], body: Vector[Stmt])    extends Expr
+case class Literal(value: Terminal)                             extends Expr
+case class Unary(op: Token, right: Expr)                        extends Expr
+case class Variable(name: Token)                                extends Expr

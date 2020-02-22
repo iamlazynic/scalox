@@ -38,10 +38,10 @@ object Lox {
   }
 
   private def run(source: String, repl: Boolean): Unit = {
-    val scanner              = new Scanner(source)
-    val tokens: Array[Token] = scanner.scan()
-    val parser               = new Parser(tokens)
-    val result               = parser.parse(repl)
+    val scanner = new Scanner(source)
+    val tokens  = scanner.scan()
+    val parser  = new Parser(tokens)
+    val result  = parser.parse(repl)
 
     // Stop if there's any syntax error
     if (hadError) return

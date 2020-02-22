@@ -9,7 +9,7 @@ class Interpreter {
   top.define("clock",
              TFunction(0, (_: Seq[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
 
-  def interpret(item: Either[Array[Stmt], Expr]): Unit = {
+  def interpret(item: Either[Vector[Stmt], Expr]): Unit = {
     try {
       item match {
         case Left(statements) => statements.foreach(execute(top))
@@ -49,7 +49,7 @@ class Interpreter {
     }
   }
 
-  private def closure(env: Environment)(params: Array[Token], body: Array[Stmt])(
+  private def closure(env: Environment)(params: Vector[Token], body: Vector[Stmt])(
       args: Seq[Terminal]): Terminal = {
     val local = new Environment(Some(env))
     for (i <- params.indices) local.define(params(i).lexeme, args(i))
@@ -58,7 +58,7 @@ class Interpreter {
     TNil()
   }
 
-  private def executeSequence(env: Environment)(statements: Array[Stmt]): Boolean = {
+  private def executeSequence(env: Environment)(statements: Vector[Stmt]): Boolean = {
     for (stmt <- statements) {
       execute(env)(stmt)
       if (!continue) return false
