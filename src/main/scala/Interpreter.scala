@@ -1,3 +1,5 @@
+import scala.collection.mutable
+
 object Interpreter {
   private case class Return(value: Terminal) extends RuntimeException()
 }
@@ -5,6 +7,7 @@ object Interpreter {
 class Interpreter {
   private val top      = new Environment()
   private var continue = true
+  private val locals   = new mutable.HashMap[Expr, Int]()
 
   top.define("clock",
              TFunction(0, (_: Seq[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
@@ -12,7 +15,7 @@ class Interpreter {
   def interpret(item: Either[Vector[Stmt], Expr]): Unit = {
     try {
       item match {
-        case Left(statements) => statements.foreach(execute(top))
+        case Left(statements) => statements foreach execute(top)
         case Right(expr)      => println(evaluate(top)(expr))
       }
     } catch {
@@ -27,7 +30,7 @@ class Interpreter {
       case Block(statements) =>
         val local = new Environment(Some(env))
         continue = executeSequence(local)(statements)
-      case Break() =>
+      case Break(_) =>
         continue = false
       case Expression(expr) =>
         eval(expr)
@@ -35,7 +38,7 @@ class Interpreter {
         env.define(name.lexeme, TFunction(params.length, closure(env)(params, body)))
       case If(cond, brThen, brElse) =>
         if (isTruthy(eval(cond))) exec(brThen)
-        else brElse.foreach(exec)
+        else brElse foreach exec
       case While(cond, body) =>
         while (continue && isTruthy(eval(cond))) exec(body)
         continue = true
@@ -67,9 +70,12 @@ class Interpreter {
   }
 
   private def evaluate(env: Environment)(expr: Expr): Terminal = expr match {
-    case Assign(name, value) =>
+    case ex @ Assign(name, value) =>
       val valu = evaluate(env)(value)
-      env.assign(name, valu)
+      locals.get(ex) match {
+        case None        => top.assign(name, valu)
+        case Some(depth) => env.assignAt(depth, name, valu)
+      }
       valu
     case Binary(left, op, right) =>
       val lv = evaluate(env)(left)
@@ -122,8 +128,15 @@ class Interpreter {
         case TokenType.BANG  => TBoolean(!isTruthy(rv))
         // TODO: exhausted match?
       }
-    case Variable(name) => env.get(name)
+    case ex @ Variable(name) =>
+      locals.get(ex) match {
+        case Some(depth) => env.getAt(depth, name.lexeme)
+        case None        => top.get(name)
+      }
   }
+
+  def resolve(expr: Expr, depth: Int): Unit =
+    locals.put(expr, depth)
 
   private def stripNumber(operator: Token, operand: Terminal): Double = operand match {
     case TNumber(d) => d

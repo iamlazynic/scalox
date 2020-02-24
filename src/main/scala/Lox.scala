@@ -46,6 +46,11 @@ object Lox {
     // Stop if there's any syntax error
     if (hadError) return
 
+    val resolver = new Resolver(interpreter)
+    resolver.resolve(result)
+
+    if (hadError) return
+
     interpreter.interpret(result)
   }
 
