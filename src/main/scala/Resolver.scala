@@ -41,14 +41,14 @@ class Resolver(interpreter: Interpreter) {
   }
 
   private def resolve(expr: Expr): Unit = expr match {
-    case Assign(name, value)    => resolve(value); resolveLocal(expr, name)
-    case Binary(left, _, right) => resolve(left); resolve(right)
-    case Call(callee, _, args)  => resolve(callee); args foreach resolve
-    case Grouping(expr)         => resolve(expr)
-    case Lambda(params, body)   => resolveFn(params, body, FN)
-    case Literal(_)             =>
-    case Unary(_, right)        => resolve(right)
-    case Variable(name) =>
+    case Assign(name, value, _)    => resolve(value); resolveLocal(expr, name)
+    case Binary(left, _, right, _) => resolve(left); resolve(right)
+    case Call(callee, _, args, _)  => resolve(callee); args foreach resolve
+    case Grouping(expr, _)         => resolve(expr)
+    case Lambda(params, body, _)   => resolveFn(params, body, FN)
+    case Literal(_, _)             =>
+    case Unary(_, right, _)        => resolve(right)
+    case Variable(name, _) =>
       scopes match {
         case Nil =>
         case scope :: _ =>

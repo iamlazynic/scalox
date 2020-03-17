@@ -70,14 +70,14 @@ class Interpreter {
   }
 
   private def evaluate(env: Environment)(expr: Expr): Terminal = expr match {
-    case ex @ Assign(name, value) =>
+    case ex @ Assign(name, value, _) =>
       val valu = evaluate(env)(value)
       locals.get(ex) match {
         case None        => top.assign(name, valu)
         case Some(depth) => env.assignAt(depth, name, valu)
       }
       valu
-    case Binary(left, op, right) =>
+    case Binary(left, op, right, _) =>
       val lv = evaluate(env)(left)
       op.typ match {
         case TokenType.OR  => if (isTruthy(lv)) lv else evaluate(env)(right)
@@ -109,7 +109,7 @@ class Interpreter {
             // TODO: exhausted match?
           }
       }
-    case Call(callee, paren, args) =>
+    case Call(callee, paren, args, _) =>
       evaluate(env)(callee) match {
         case TFunction(arity, func) =>
           if (args.length != arity)
@@ -117,18 +117,18 @@ class Interpreter {
           func(args.map(evaluate(env)))
         case _ => throw RuntimeError(paren, "Can only call functions and classes.")
       }
-    case Grouping(expr) => evaluate(env)(expr)
-    case Lambda(params, body) =>
+    case Grouping(expr, _) => evaluate(env)(expr)
+    case Lambda(params, body, _) =>
       TFunction(params.length, closure(env)(params, body))
-    case Literal(value) => value
-    case Unary(op, right) =>
+    case Literal(value, _) => value
+    case Unary(op, right, _) =>
       val rv = evaluate(env)(right)
       op.typ match {
         case TokenType.MINUS => TNumber(-stripNumber(op, rv))
         case TokenType.BANG  => TBoolean(!isTruthy(rv))
         // TODO: exhausted match?
       }
-    case ex @ Variable(name) =>
+    case ex @ Variable(name, _) =>
       locals.get(ex) match {
         case Some(depth) => env.getAt(depth, name.lexeme)
         case None        => top.get(name)

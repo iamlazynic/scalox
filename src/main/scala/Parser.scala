@@ -101,7 +101,7 @@ class Parser(tokens: Vector[Token]) {
 
     // desugaring
     increment.foreach(expr => body = Block(Vector(body, Expression(expr))))
-    body = While(cond.getOrElse(Literal(TBoolean(true))), body)
+    body = While(cond.getOrElse(Literal(TBoolean(true), Expr.index)), body)
     initializer.foreach(stmt => body = Block(Vector(stmt, body)))
 
     body
@@ -165,8 +165,8 @@ class Parser(tokens: Vector[Token]) {
       val value: Expr   = assignment()
 
       expr match {
-        case Variable(name) => Assign(name, value)
-        case _              => error(equals, "Invalid assignment target."); expr
+        case Variable(name, _) => Assign(name, value, Expr.index)
+        case _                 => error(equals, "Invalid assignment target."); expr
       }
     } else {
       expr
@@ -179,7 +179,7 @@ class Parser(tokens: Vector[Token]) {
     if (matc(TokenType.COMMA)) {
       val op: Token   = previous
       val right: Expr = series()
-      Binary(left, op, right)
+      Binary(left, op, right, Expr.index)
     } else {
       left
     }
@@ -218,7 +218,7 @@ class Parser(tokens: Vector[Token]) {
     if (matc(TokenType.BANG, TokenType.MINUS)) {
       val op: Token   = previous
       val right: Expr = unary()
-      Unary(op, right)
+      Unary(op, right, Expr.index)
     } else {
       lambda()
     }
@@ -231,7 +231,7 @@ class Parser(tokens: Vector[Token]) {
       val params =
         patternCommaSep("parameters", () => consume(TokenType.IDENTIFIER, "Expect parameter name."))
       consume(TokenType.LEFT_BRACE, s"Expect '{' before lambda body.")
-      Lambda(params, block())
+      Lambda(params, block(), Expr.index)
     } else {
       call()
     }
@@ -244,7 +244,7 @@ class Parser(tokens: Vector[Token]) {
     while (true) {
       if (matc(TokenType.LEFT_PAREN)) {
         val args = patternCommaSep("arguments", expression)
-        expr = Call(expr, previous, args)
+        expr = Call(expr, previous, args, Expr.index)
       } else {
         return expr
       }
@@ -267,19 +267,19 @@ class Parser(tokens: Vector[Token]) {
   // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
   private def primary(): Expr = {
     if (matc(TokenType.FALSE))
-      Literal(TBoolean(false))
+      Literal(TBoolean(false), Expr.index)
     else if (matc(TokenType.TRUE))
-      Literal(TBoolean(true))
+      Literal(TBoolean(true), Expr.index)
     else if (matc(TokenType.NIL))
-      Literal(TNil())
+      Literal(TNil(), Expr.index)
     else if (matc(TokenType.NUMBER, TokenType.STRING))
-      Literal(previous.literal.get)
+      Literal(previous.literal.get, Expr.index)
     else if (matc(TokenType.IDENTIFIER))
-      Variable(previous)
+      Variable(previous, Expr.index)
     else if (matc(TokenType.LEFT_PAREN)) {
       val expr: Expr = expression()
       consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
-      Grouping(expr)
+      Grouping(expr, Expr.index)
     } else if (matc(
                  TokenType.COMMA,
                  TokenType.BANG_EQUAL,
@@ -308,7 +308,7 @@ class Parser(tokens: Vector[Token]) {
     while (matc(x: _*)) {
       val op: Token   = previous
       val right: Expr = A()
-      expr = Binary(expr, op, right)
+      expr = Binary(expr, op, right, Expr.index)
     }
     expr
   }
