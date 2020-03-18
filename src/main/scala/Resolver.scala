@@ -1,16 +1,24 @@
+import Resolver.ClassType.ClassType
+import Resolver.FunctionType.FunctionType
+import Resolver.{ClassType, FunctionType}
+
 import scala.collection.mutable
-import Resolver.{FunctionType, FUNCTION, NONE}
 
 object Resolver {
-  private sealed trait FunctionType
-  private case object NONE     extends FunctionType
-  private case object FUNCTION extends FunctionType
-  private case object METHOD   extends FunctionType
+  object FunctionType extends Enumeration {
+    type FunctionType = Value
+    val NONE, FUNCTION, INITIALIZER, METHOD = Value
+  }
+  object ClassType extends Enumeration {
+    type ClassType = Value
+    val NONE, CLASS = Value
+  }
 }
 
 class Resolver(interpreter: Interpreter) {
   private var scopes: List[mutable.HashMap[String, Boolean]] = Nil
-  private var currentFn: FunctionType                        = NONE
+  private var currentFunc: FunctionType                      = FunctionType.NONE
+  private var currentClass: ClassType                        = ClassType.NONE
   private var currentLoop: Boolean                           = false
 
   def resolve(item: Either[Vector[Stmt], Expr]): Unit = item match {
@@ -26,23 +34,19 @@ class Resolver(interpreter: Interpreter) {
     case Break(keyword) =>
       if (!currentLoop) Lox.error(keyword, "Break from loops only.")
     case Class(name, methods) =>
-      declare(name)
-      define(name)
-      beginScope()
-      scopes.head.put("this", true)
-      for (method <- methods) {
-        val declaration = Resolver.METHOD
-        resolveFn(method.params, method.body, declaration)
-      }
-      endScope()
+      resolveClass(name, methods)
     case Expression(expr) => resolve(expr)
     case Function(name, params, body) =>
-      declare(name); define(name); resolveFn(params, body, FUNCTION)
+      declare(name); define(name); resolveFn(params, body, FunctionType.FUNCTION)
     case If(cond, brThen, brElse) => resolve(cond); resolve(brThen); brElse foreach resolve
     case Print(expr)              => resolve(expr)
     case Return(keyword, value) =>
-      if (currentFn == NONE) Lox.error(keyword, "Return from functions only.")
-      value foreach resolve
+      if (currentFunc == FunctionType.NONE) Lox.error(keyword, "Return from functions only.")
+      value.foreach(expr => {
+        if (currentFunc == FunctionType.INITIALIZER)
+          Lox.error(keyword, "Cannot return from an initializer.")
+        resolve(expr)
+      })
     case Var(name, initializer) => declare(name); initializer foreach resolve; define(name)
     case While(cond, body) =>
       resolve(cond)
@@ -58,11 +62,15 @@ class Resolver(interpreter: Interpreter) {
     case Call(callee, _, args, _)  => resolve(callee); args foreach resolve
     case Get(obj, name, _)         => resolve(obj)
     case Grouping(expr, _)         => resolve(expr)
-    case Lambda(params, body, _)   => resolveFn(params, body, FUNCTION)
+    case Lambda(params, body, _)   => resolveFn(params, body, FunctionType.FUNCTION)
     case Literal(_, _)             =>
     case Set(obj, name, value, _)  => resolve(value); resolve(obj)
     case Unary(_, right, _)        => resolve(right)
-    case This(keyword, _)          => resolveLocal(expr, keyword)
+    case This(keyword, _) =>
+      if (currentClass == ClassType.NONE)
+        Lox.error(keyword, "Cannot use 'this' outside of a class.")
+      else
+        resolveLocal(expr, keyword)
     case Variable(name, _) =>
       scopes match {
         case Nil =>
@@ -73,9 +81,9 @@ class Resolver(interpreter: Interpreter) {
       resolveLocal(expr, name)
   }
 
-  private def resolveFn(params: Vector[Token], body: Vector[Stmt], fnType: FunctionType): Unit = {
-    val enclosingFn = currentFn
-    currentFn = fnType
+  private def resolveFn(params: Vector[Token], body: Vector[Stmt], funcType: FunctionType): Unit = {
+    val enclosingFunc = currentFunc
+    currentFunc = funcType
     beginScope()
     for (param <- params) {
       declare(param)
@@ -83,7 +91,23 @@ class Resolver(interpreter: Interpreter) {
     }
     resolve(body)
     endScope()
-    currentFn = enclosingFn
+    currentFunc = enclosingFunc
+  }
+
+  private def resolveClass(name: Token, methods: Vector[Function]): Unit = {
+    val enclosingClass = currentClass
+    currentClass = ClassType.CLASS
+    declare(name)
+    define(name)
+    beginScope()
+    scopes.head.put("this", true)
+    for (method <- methods) {
+      val declaration =
+        if (method.name.lexeme == "init") FunctionType.INITIALIZER else FunctionType.METHOD
+      resolveFn(method.params, method.body, declaration)
+    }
+    endScope()
+    currentClass = enclosingClass
   }
 
   @scala.annotation.tailrec

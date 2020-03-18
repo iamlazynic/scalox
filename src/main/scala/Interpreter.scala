@@ -39,7 +39,7 @@ class Interpreter {
         val methmap = new mutable.HashMap[String, TFunction]()
         for (method <- methods) {
           val (name, params, body) = Function.unapply(method).get
-          val func                 = TFunction(params, body, env)
+          val func                 = TFunction(params, body, env, name.lexeme == "init")
           methmap.put(name.lexeme, func)
         }
         val klass = TClass(name.lexeme, methmap, TClass.index)
@@ -47,7 +47,7 @@ class Interpreter {
       case Expression(expr) =>
         eval(expr)
       case Function(name, params, body) =>
-        val func = TFunction(params, body, env)
+        val func = TFunction(params, body, env, isInitializer = false)
         env.define(name.lexeme, func)
       case If(cond, brThen, brElse) =>
         if (isTruthy(eval(cond))) exec(brThen)
@@ -124,13 +124,27 @@ class Interpreter {
       }
     case Call(callee, paren, args, _) =>
       evaluate(env)(callee) match {
-        case TFunction(params, body, clenv) =>
+        case TFunction(params, body, clenv, isInitializer) =>
           if (args.length != params.length)
             throw RuntimeError(paren,
                                s"Expected ${params.length} arguments but got ${args.length}.")
-          closure(clenv)(params, body)(args.map(evaluate(env)))
+          val ret = closure(clenv)(params, body)(args.map(evaluate(env)))
+          if (isInitializer) clenv.getAt(0, "this") else ret
         case klass: TClass =>
-          TInstance(klass, TClass.index)
+          val instance = TInstance(klass, TClass.index)
+          klass.methods.get("init") match {
+            case Some(TFunction(params, body, clenv, _)) =>
+              if (args.length != params.length)
+                throw RuntimeError(paren,
+                                   s"Expected ${params.length} arguments but got ${args.length}.")
+              val local = new Environment(Some(clenv))
+              local.define("this", instance)
+              closure(local)(params, body)(args.map(evaluate(env)))
+            case None =>
+              if (args.nonEmpty)
+                throw RuntimeError(paren, s"Expected 0 argument but got ${args.length} arguments.")
+          }
+          instance
         case _ => throw RuntimeError(paren, "Can only call functions and classes.")
       }
     case Get(obj, name, _) =>
@@ -140,10 +154,10 @@ class Interpreter {
             case Some(property) => property
             case None =>
               klass.methods.get(name.lexeme) match {
-                case Some(method) =>
-                  val local = new Environment(Some(env))
+                case Some(TFunction(params, body, clenv, isInitializer)) =>
+                  val local = new Environment(Some(clenv))
                   local.define("this", instance)
-                  TFunction(method.params, method.body, local)
+                  TFunction(params, body, local, isInitializer)
                 case None =>
                   throw RuntimeError(name, s"Undefined property ${name.lexeme}.")
               }
@@ -153,7 +167,7 @@ class Interpreter {
       }
     case Grouping(expr, _) => evaluate(env)(expr)
     case Lambda(params, body, _) =>
-      TFunction(params, body, env)
+      TFunction(params, body, env, isInitializer = false)
     case Literal(value, _) => value
     case Set(obj, name, value, _) =>
       evaluate(env)(obj) match {
