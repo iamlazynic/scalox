@@ -25,17 +25,30 @@ class Parser(tokens: Vector[Token]) {
     Left(statements)
   }
 
-  // declaration → var | function | statement
+  // declaration → var | class | function | statement
   private def declaration: Stmt = {
     if (matc(TokenType.VAR)) return varDeclaration()
+    if (matc(TokenType.CLASS)) return classDeclaration()
     if (matc(TokenType.FUN))
       if (next.typ == TokenType.IDENTIFIER) return function("function")
       else current = current - 1 // FIXME: stepping back, terrible?
     statement
   }
 
-  // function → "fun" IDENTIFIER "(" parameters? ")" block
-  private def function(kind: String): Stmt = {
+  // class → IDENTIFIER "{" function* "}"
+  private def classDeclaration(): Stmt = {
+    val name = consume(TokenType.IDENTIFIER, "Expect class name.")
+    consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
+    var methods: Vector[Function] = Vector()
+    while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
+      methods = methods :+ function("method")
+    }
+    consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
+    Class(name, methods)
+  }
+
+  // function → IDENTIFIER "(" parameters? ")" block
+  private def function(kind: String): Function = {
     val name: Token = consume(TokenType.IDENTIFIER, s"Expect $kind name.")
     consume(TokenType.LEFT_PAREN, s"Expect '(' after $kind name.")
     val params =
@@ -155,33 +168,34 @@ class Parser(tokens: Vector[Token]) {
   }
 
   // expression → assignment
-  private def expression(): Expr = assignment()
+  private def expression(): Expr = series()
 
-  // assignment → identifier "=" assignment | series
-  private def assignment(): Expr = {
-    val expr: Expr = series()
-    if (matc(TokenType.EQUAL)) {
-      val equals: Token = previous
-      val value: Expr   = assignment()
-
-      expr match {
-        case Variable(name, _) => Assign(name, value, Expr.index)
-        case _                 => error(equals, "Invalid assignment target."); expr
-      }
-    } else {
-      expr
-    }
-  }
-
-  // series → logical_or ( "," logical_or )*
+  // series → assignment ( "," assignment )*
   private def series(): Expr = {
-    val left: Expr = or()
+    val left: Expr = assignment()
     if (matc(TokenType.COMMA)) {
       val op: Token   = previous
       val right: Expr = series()
       Binary(left, op, right, Expr.index)
     } else {
       left
+    }
+  }
+
+  // assignment → ( call "." )? identifier "=" assignment | logical_or
+  private def assignment(): Expr = {
+    val expr: Expr = or()
+    if (matc(TokenType.EQUAL)) {
+      val equals: Token = previous
+      val value: Expr   = assignment()
+
+      expr match {
+        case Variable(name, _) => Assign(name, value, Expr.index)
+        case Get(obj, name, _) => Set(obj, name, value, Expr.index)
+        case _                 => error(equals, "Invalid assignment target."); expr
+      }
+    } else {
+      expr
     }
   }
 
@@ -237,7 +251,7 @@ class Parser(tokens: Vector[Token]) {
     }
   }
 
-  // call      → primary ( "(" arguments? ")" )*
+  // call      → primary ( "(" arguments? ")" | "." IDENTIFIER )*
   // arguments → expression ( "," expression )*
   private def call(): Expr = {
     var expr: Expr = primary()
@@ -245,6 +259,9 @@ class Parser(tokens: Vector[Token]) {
       if (matc(TokenType.LEFT_PAREN)) {
         val args = patternCommaSep("arguments", expression)
         expr = Call(expr, previous, args, Expr.index)
+      } else if (matc(TokenType.DOT)) {
+        val name = consume(TokenType.IDENTIFIER, "Expect property name after '.'.")
+        expr = Get(expr, name, Expr.index)
       } else {
         return expr
       }
@@ -274,6 +291,8 @@ class Parser(tokens: Vector[Token]) {
       Literal(TNil(), Expr.index)
     else if (matc(TokenType.NUMBER, TokenType.STRING))
       Literal(previous.literal.get, Expr.index)
+    else if (matc(TokenType.THIS))
+      This(previous, Expr.index)
     else if (matc(TokenType.IDENTIFIER))
       Variable(previous, Expr.index)
     else if (matc(TokenType.LEFT_PAREN)) {

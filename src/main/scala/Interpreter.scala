@@ -9,8 +9,10 @@ class Interpreter {
   private var continue = true
   private val locals   = new mutable.HashMap[Expr, Int]()
 
+  /* TODO: make this happen
   top.define("clock",
              TFunction(0, (_: Seq[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
+   */
 
   def interpret(item: Either[Vector[Stmt], Expr]): Unit = {
     try {
@@ -32,10 +34,21 @@ class Interpreter {
         continue = executeSequence(local)(statements)
       case Break(_) =>
         continue = false
+      case Class(name, methods) =>
+        env.define(name.lexeme, TNil())
+        val methmap = new mutable.HashMap[String, TFunction]()
+        for (method <- methods) {
+          val (name, params, body) = Function.unapply(method).get
+          val func                 = TFunction(params, body, env)
+          methmap.put(name.lexeme, func)
+        }
+        val klass = TClass(name.lexeme, methmap, TClass.index)
+        env.assign(name, klass)
       case Expression(expr) =>
         eval(expr)
       case Function(name, params, body) =>
-        env.define(name.lexeme, TFunction(params.length, closure(env)(params, body)))
+        val func = TFunction(params, body, env)
+        env.define(name.lexeme, func)
       case If(cond, brThen, brElse) =>
         if (isTruthy(eval(cond))) exec(brThen)
         else brElse foreach exec
@@ -111,16 +124,48 @@ class Interpreter {
       }
     case Call(callee, paren, args, _) =>
       evaluate(env)(callee) match {
-        case TFunction(arity, func) =>
-          if (args.length != arity)
-            throw RuntimeError(paren, s"Expected $arity arguments but got ${args.length}.")
-          func(args.map(evaluate(env)))
+        case TFunction(params, body, clenv) =>
+          if (args.length != params.length)
+            throw RuntimeError(paren,
+                               s"Expected ${params.length} arguments but got ${args.length}.")
+          closure(clenv)(params, body)(args.map(evaluate(env)))
+        case klass: TClass =>
+          TInstance(klass, TClass.index)
         case _ => throw RuntimeError(paren, "Can only call functions and classes.")
+      }
+    case Get(obj, name, _) =>
+      evaluate(env)(obj) match {
+        case instance @ TInstance(klass, _) =>
+          instance.fields.get(name.lexeme) match {
+            case Some(property) => property
+            case None =>
+              klass.methods.get(name.lexeme) match {
+                case Some(method) =>
+                  val local = new Environment(Some(env))
+                  local.define("this", instance)
+                  TFunction(method.params, method.body, local)
+                case None =>
+                  throw RuntimeError(name, s"Undefined property ${name.lexeme}.")
+              }
+          }
+        case _ =>
+          throw RuntimeError(name, "Only instances have properties.")
       }
     case Grouping(expr, _) => evaluate(env)(expr)
     case Lambda(params, body, _) =>
-      TFunction(params.length, closure(env)(params, body))
+      TFunction(params, body, env)
     case Literal(value, _) => value
+    case Set(obj, name, value, _) =>
+      evaluate(env)(obj) match {
+        case instance: TInstance =>
+          val valu = evaluate(env)(value)
+          instance.fields.put(name.lexeme, valu)
+          valu
+        case _ =>
+          throw RuntimeError(name, "Only instances have fields.")
+      }
+    case expr: This =>
+      lookup(env)(expr.keyword, expr)
     case Unary(op, right, _) =>
       val rv = evaluate(env)(right)
       op.typ match {
@@ -128,15 +173,17 @@ class Interpreter {
         case TokenType.BANG  => TBoolean(!isTruthy(rv))
         // TODO: exhausted match?
       }
-    case ex @ Variable(name, _) =>
-      locals.get(ex) match {
-        case Some(depth) => env.getAt(depth, name.lexeme)
-        case None        => top.get(name)
-      }
+    case expr: Variable =>
+      lookup(env)(expr.name, expr)
   }
 
   def resolve(expr: Expr, depth: Int): Unit =
     locals.put(expr, depth)
+
+  private def lookup(env: Environment)(name: Token, expr: Expr): Terminal = locals.get(expr) match {
+    case Some(depth) => env.getAt(depth, name.lexeme)
+    case None        => top.get(name)
+  }
 
   private def stripNumber(operator: Token, operand: Terminal): Double = operand match {
     case TNumber(d) => d

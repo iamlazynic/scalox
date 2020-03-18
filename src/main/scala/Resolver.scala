@@ -1,10 +1,11 @@
 import scala.collection.mutable
-import Resolver.{FunctionType, FN, NONE}
+import Resolver.{FunctionType, FUNCTION, NONE}
 
 object Resolver {
   private sealed trait FunctionType
-  private case object NONE extends FunctionType
-  private case object FN   extends FunctionType
+  private case object NONE     extends FunctionType
+  private case object FUNCTION extends FunctionType
+  private case object METHOD   extends FunctionType
 }
 
 class Resolver(interpreter: Interpreter) {
@@ -24,10 +25,21 @@ class Resolver(interpreter: Interpreter) {
     case Block(statements) => beginScope(); resolve(statements); endScope()
     case Break(keyword) =>
       if (!currentLoop) Lox.error(keyword, "Break from loops only.")
-    case Expression(expr)             => resolve(expr)
-    case Function(name, params, body) => declare(name); define(name); resolveFn(params, body, FN)
-    case If(cond, brThen, brElse)     => resolve(cond); resolve(brThen); brElse foreach resolve
-    case Print(expr)                  => resolve(expr)
+    case Class(name, methods) =>
+      declare(name)
+      define(name)
+      beginScope()
+      scopes.head.put("this", true)
+      for (method <- methods) {
+        val declaration = Resolver.METHOD
+        resolveFn(method.params, method.body, declaration)
+      }
+      endScope()
+    case Expression(expr) => resolve(expr)
+    case Function(name, params, body) =>
+      declare(name); define(name); resolveFn(params, body, FUNCTION)
+    case If(cond, brThen, brElse) => resolve(cond); resolve(brThen); brElse foreach resolve
+    case Print(expr)              => resolve(expr)
     case Return(keyword, value) =>
       if (currentFn == NONE) Lox.error(keyword, "Return from functions only.")
       value foreach resolve
@@ -44,10 +56,13 @@ class Resolver(interpreter: Interpreter) {
     case Assign(name, value, _)    => resolve(value); resolveLocal(expr, name)
     case Binary(left, _, right, _) => resolve(left); resolve(right)
     case Call(callee, _, args, _)  => resolve(callee); args foreach resolve
+    case Get(obj, name, _)         => resolve(obj)
     case Grouping(expr, _)         => resolve(expr)
-    case Lambda(params, body, _)   => resolveFn(params, body, FN)
+    case Lambda(params, body, _)   => resolveFn(params, body, FUNCTION)
     case Literal(_, _)             =>
+    case Set(obj, name, value, _)  => resolve(value); resolve(obj)
     case Unary(_, right, _)        => resolve(right)
+    case This(keyword, _)          => resolveLocal(expr, keyword)
     case Variable(name, _) =>
       scopes match {
         case Nil =>
