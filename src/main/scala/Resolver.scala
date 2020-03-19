@@ -33,8 +33,8 @@ class Resolver(interpreter: Interpreter) {
     case Block(statements) => beginScope(); resolve(statements); endScope()
     case Break(keyword) =>
       if (!currentLoop) Lox.error(keyword, "Break from loops only.")
-    case Class(name, methods) =>
-      resolveClass(name, methods)
+    case Class(name, staticMethods, methods) =>
+      resolveClass(name,staticMethods, methods)
     case Expression(expr) => resolve(expr)
     case Function(name, params, body) =>
       declare(name); define(name); resolveFn(params, body, FunctionType.FUNCTION)
@@ -94,13 +94,16 @@ class Resolver(interpreter: Interpreter) {
     currentFunc = enclosingFunc
   }
 
-  private def resolveClass(name: Token, methods: Vector[Function]): Unit = {
+  private def resolveClass(name: Token, staticMethods: Vector[Function], methods: Vector[Function]): Unit = {
     val enclosingClass = currentClass
     currentClass = ClassType.CLASS
     declare(name)
     define(name)
     beginScope()
     scopes.head.put("this", true)
+    for (method <- staticMethods) {
+      resolveFn(method.params, method.body, FunctionType.METHOD)
+    }
     for (method <- methods) {
       val declaration =
         if (method.name.lexeme == "init") FunctionType.INITIALIZER else FunctionType.METHOD

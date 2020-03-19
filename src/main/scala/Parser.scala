@@ -35,16 +35,18 @@ class Parser(tokens: Vector[Token]) {
     statement
   }
 
-  // class → IDENTIFIER "{" function* "}"
+  // class → IDENTIFIER "{" ( "class" )? function* "}"
   private def classDeclaration(): Stmt = {
     val name = consume(TokenType.IDENTIFIER, "Expect class name.")
     consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
-    var methods: Vector[Function] = Vector()
+    var methods: Vector[Function]       = Vector()
+    var staticMethods: Vector[Function] = Vector()
     while (!check(TokenType.RIGHT_BRACE) && !isAtEnd) {
-      methods = methods :+ function("method")
+      if (matc(TokenType.CLASS)) staticMethods = staticMethods :+ function("method")
+      else methods = methods :+ function("method")
     }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
-    Class(name, methods)
+    Class(name, staticMethods, methods)
   }
 
   // function → IDENTIFIER "(" parameters? ")" block

@@ -34,15 +34,21 @@ class Interpreter {
         continue = executeSequence(local)(statements)
       case Break(_) =>
         continue = false
-      case Class(name, methods) =>
+      case Class(name, staticMethods, methods) =>
         env.define(name.lexeme, TNil())
-        val methmap = new mutable.HashMap[String, TFunction]()
+        val staticMethMap = new mutable.HashMap[String, TFunction]()
+        val methMap = new mutable.HashMap[String, TFunction]()
+        for (method <- staticMethods) {
+          val (name, params, body) = Function.unapply(method).get
+          val func = TFunction(params, body, env, isInitializer = false)
+          staticMethMap.put(name.lexeme, func)
+        }
         for (method <- methods) {
           val (name, params, body) = Function.unapply(method).get
           val func                 = TFunction(params, body, env, name.lexeme == "init")
-          methmap.put(name.lexeme, func)
+          methMap.put(name.lexeme, func)
         }
-        val klass = TClass(name.lexeme, methmap, TClass.index)
+        val klass = TClass(name.lexeme, staticMethMap, methMap, TClass.index)
         env.assign(name, klass)
       case Expression(expr) =>
         eval(expr)
@@ -145,11 +151,11 @@ class Interpreter {
       }
     case Get(obj, name, _) =>
       evaluate(env)(obj) match {
-        case instance @ TInstance(klass, _) =>
+        case instance: TInstance =>
           instance.fields.get(name.lexeme) match {
             case Some(property) => property
             case None =>
-              klass.methods.get(name.lexeme) match {
+              instance.klass.methods.get(name.lexeme) match {
                 case Some(TFunction(params, body, clenv, isInitializer)) =>
                   val local = new Environment(Some(clenv))
                   local.define("this", instance)
@@ -157,6 +163,11 @@ class Interpreter {
                 case None =>
                   throw RuntimeError(name, s"Undefined property ${name.lexeme}.")
               }
+          }
+        case klass: TClass =>
+          klass.staticMethods.get(name.lexeme) match {
+            case Some(method) => method
+            case None => throw RuntimeError(name, s"Undefined static method ${name.lexeme}.")
           }
         case _ =>
           throw RuntimeError(name, "Only instances have properties.")
