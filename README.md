@@ -1,6 +1,5 @@
 # scalox - Interpreter for Lox written in Scala
 
-## Links
 
 * The corresponding chapter: A tree-walk interpreter. http://www.craftinginterpreters.com/a-tree-walk-interpreter.html
 * Lox Grammer. http://www.craftinginterpreters.com/appendix-i.html
