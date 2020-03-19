@@ -286,7 +286,10 @@ class Parser(tokens: Vector[Token]) {
     items
   }
 
-  // primary → NUMBER | STRING | "false" | "true" | "nil" | "(" expression ")"
+  // primary → IDENTIFIER | NUMBER | STRING
+  //         | "false" | "true" | "nil" | "this"
+  //         | "(" expression ")"
+  //         | "super" "." IDENTIFIER
   private def primary(): Expr = {
     if (matc(TokenType.FALSE))
       Literal(TBoolean(false), Expr.index)
@@ -296,7 +299,12 @@ class Parser(tokens: Vector[Token]) {
       Literal(TNil(), Expr.index)
     else if (matc(TokenType.NUMBER, TokenType.STRING))
       Literal(previous.literal.get, Expr.index)
-    else if (matc(TokenType.THIS))
+    else if (matc(TokenType.SUPER)) {
+      val keyword = previous
+      consume(TokenType.DOT, "Expect '.' after 'super'.")
+      val method = consume(TokenType.IDENTIFIER, "Expect superclass method name.")
+      Super(keyword, method, Expr.index)
+    } else if (matc(TokenType.THIS))
       This(previous, Expr.index)
     else if (matc(TokenType.IDENTIFIER))
       Variable(previous, Expr.index)

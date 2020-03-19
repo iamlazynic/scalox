@@ -65,6 +65,7 @@ class Resolver(interpreter: Interpreter) {
     case Lambda(params, body, _)   => resolveFn(params, body, FunctionType.FUNCTION)
     case Literal(_, _)             =>
     case Set(obj, name, value, _)  => resolve(value); resolve(obj)
+    case Super(keyword, _, _)      => resolveLocal(expr, keyword)
     case Unary(_, right, _)        => resolve(right)
     case This(keyword, _) =>
       if (currentClass == ClassType.NONE)
@@ -108,6 +109,8 @@ class Resolver(interpreter: Interpreter) {
       resolve(variable)
     })
     beginScope()
+    scopes.head.put("super", true)
+    beginScope()
     scopes.head.put("this", true)
     for (method <- staticMethods) {
       resolveFn(method.params, method.body, FunctionType.METHOD)
@@ -117,6 +120,7 @@ class Resolver(interpreter: Interpreter) {
         if (method.name.lexeme == "init") FunctionType.INITIALIZER else FunctionType.METHOD
       resolveFn(method.params, method.body, declaration)
     }
+    endScope()
     endScope()
     currentClass = enclosingClass
   }

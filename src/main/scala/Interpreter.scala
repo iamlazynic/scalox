@@ -41,16 +41,20 @@ class Interpreter {
             case _             => throw RuntimeError(variable.name, "Superclass must be a class.")
         })
         env.define(name.lexeme, TNil())
+        val current = new Environment(Some(env))
+        parent.foreach(klass => {
+          current.define("super", klass)
+        })
         val staticMethMap = new mutable.HashMap[String, TFunction]()
         val methMap       = new mutable.HashMap[String, TFunction]()
         for (method <- staticMethods) {
           val (name, params, body) = Function.unapply(method).get
-          val func                 = TFunction(params, body, env, isInitializer = false)
+          val func                 = TFunction(params, body, current, isInitializer = false)
           staticMethMap.put(name.lexeme, func)
         }
         for (method <- methods) {
           val (name, params, body) = Function.unapply(method).get
-          val func                 = TFunction(params, body, env, name.lexeme == "init")
+          val func                 = TFunction(params, body, current, name.lexeme == "init")
           methMap.put(name.lexeme, func)
         }
         val klass = TClass(name.lexeme, parent, staticMethMap, methMap, TClass.index)
@@ -144,9 +148,7 @@ class Interpreter {
             case Some(TFunction(params, body, clenv, _)) =>
               if (args.length != params.length)
                 throw RuntimeError(paren, s"Expected ${params.length} arguments but got ${args.length}.")
-              val local = new Environment(Some(clenv))
-              local.define("this", instance)
-              closure(local)(params, body)(args.map(evaluate(env)))
+              closure(envBound(clenv, instance))(params, body)(args.map(evaluate(env)))
             case None =>
               if (args.nonEmpty)
                 throw RuntimeError(paren, s"Expected 0 argument but got ${args.length} arguments.")
@@ -162,9 +164,7 @@ class Interpreter {
             case None =>
               instance.klass.method(name.lexeme) match {
                 case Some(TFunction(params, body, clenv, isInitializer)) =>
-                  val local = new Environment(Some(clenv))
-                  local.define("this", instance)
-                  TFunction(params, body, local, isInitializer)
+                  TFunction(params, body, envBound(clenv, instance), isInitializer)
                 case None =>
                   throw RuntimeError(name, s"Undefined property ${name.lexeme}.")
               }
@@ -190,6 +190,23 @@ class Interpreter {
         case _ =>
           throw RuntimeError(name, "Only instances have fields.")
       }
+    case ex @ Super(keyword, name, _) =>
+      val depth: Int = locals(ex)
+
+      env.getAt(depth, "super") match {
+        case parent: TClass =>
+          env.getAt(depth - 1, "this") match {
+            case instance: TInstance =>
+              parent.method(name.lexeme) match {
+                case Some(TFunction(params, body, clenv, isInitializer)) =>
+                  TFunction(params, body, envBound(clenv, instance), isInitializer)
+                case None =>
+                  throw RuntimeError(name, s"Undefined property '${name.lexeme}'.")
+              }
+            case _ => throw new Exception
+          }
+        case _ => throw new Exception
+      }
     case expr: This =>
       lookup(env)(expr.keyword, expr)
     case Unary(op, right, _) =>
@@ -209,6 +226,12 @@ class Interpreter {
   private def lookup(env: Environment)(name: Token, expr: Expr): Terminal = locals.get(expr) match {
     case Some(depth) => env.getAt(depth, name.lexeme)
     case None        => top.get(name)
+  }
+
+  private def envBound(env: Environment, instance: TInstance): Environment = {
+    val local = new Environment(Some(env))
+    local.define("this", instance)
+    local
   }
 
   private def stripNumber(operator: Token, operand: Terminal): Double = operand match {
