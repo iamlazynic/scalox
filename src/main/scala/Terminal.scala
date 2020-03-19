@@ -5,12 +5,13 @@ sealed trait Terminal {
     case TNumber(value) =>
       val s = value.toString
       if (s.endsWith(".0")) s.substring(0, s.length - 2) else s
-    case TString(value)             => value
-    case TBoolean(value)            => value.toString
+    case TString(value) => value
+    case TBoolean(value) => value.toString
+    case TNative(arity, _) => s"native function ($arity) {...}"
     case TFunction(params, _, _, _) => s"fun (${params.length}  {...})"
-    case TClass(name, _, _, _, _)   => s"class $name"
-    case TInstance(klass, _)        => s"${klass.name} instance"
-    case TNil()                     => "nil"
+    case TClass(name, _, _, _, _) => s"class $name"
+    case TInstance(klass, _) => s"${klass.name} instance"
+    case TNil() => "nil"
   }
 }
 
@@ -27,6 +28,7 @@ case class TString(value: String)   extends Terminal
 case class TBoolean(value: Boolean) extends Terminal
 case class TFunction(params: Vector[Token], body: Vector[Stmt], env: Environment, isInitializer: Boolean)
     extends Terminal
+case class TNative(arity: Int, func: Vector[Terminal] => Terminal) extends Terminal
 case class TClass(name: String,
                   superclass: Option[TClass],
                   staticMethods: mutable.HashMap[String, TFunction],

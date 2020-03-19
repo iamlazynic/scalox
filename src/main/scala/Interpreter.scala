@@ -9,10 +9,7 @@ class Interpreter {
   private var continue = true
   private val locals   = new mutable.HashMap[Expr, Int]()
 
-  /* TODO: make this happen
-  top.define("clock",
-             TFunction(0, (_: Seq[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
-   */
+  top.define("clock", TNative(0, (_: Vector[Terminal]) => TNumber(System.currentTimeMillis() / 1000.0)))
 
   def interpret(item: Either[Vector[Stmt], Expr]): Unit = {
     try {
@@ -137,6 +134,10 @@ class Interpreter {
       }
     case Call(callee, paren, args, _) =>
       evaluate(env)(callee) match {
+        case TNative(arity, func) =>
+          if (args.length != arity)
+            throw RuntimeError(paren, s"Expected $arity arguments but got ${args.length}.")
+          func(args.map(evaluate(env)))
         case TFunction(params, body, clenv, isInitializer) =>
           if (args.length != params.length)
             throw RuntimeError(paren, s"Expected ${params.length} arguments but got ${args.length}.")
