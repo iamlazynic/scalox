@@ -34,13 +34,18 @@ class Interpreter {
         continue = executeSequence(local)(statements)
       case Break(_) =>
         continue = false
-      case Class(name, staticMethods, methods) =>
+      case Class(name, superclass, staticMethods, methods) =>
+        val parent = superclass.map(variable =>
+          evaluate(env)(variable) match {
+            case klass: TClass => klass
+            case _             => throw RuntimeError(variable.name, "Superclass must be a class.")
+        })
         env.define(name.lexeme, TNil())
         val staticMethMap = new mutable.HashMap[String, TFunction]()
-        val methMap = new mutable.HashMap[String, TFunction]()
+        val methMap       = new mutable.HashMap[String, TFunction]()
         for (method <- staticMethods) {
           val (name, params, body) = Function.unapply(method).get
-          val func = TFunction(params, body, env, isInitializer = false)
+          val func                 = TFunction(params, body, env, isInitializer = false)
           staticMethMap.put(name.lexeme, func)
         }
         for (method <- methods) {
@@ -48,7 +53,7 @@ class Interpreter {
           val func                 = TFunction(params, body, env, name.lexeme == "init")
           methMap.put(name.lexeme, func)
         }
-        val klass = TClass(name.lexeme, staticMethMap, methMap, TClass.index)
+        val klass = TClass(name.lexeme, parent, staticMethMap, methMap, TClass.index)
         env.assign(name, klass)
       case Expression(expr) =>
         eval(expr)
@@ -135,7 +140,7 @@ class Interpreter {
           if (isInitializer) clenv.getAt(0, "this") else ret
         case klass: TClass =>
           val instance = TInstance(klass, TClass.index)
-          klass.methods.get("init") match {
+          klass.method("init") match {
             case Some(TFunction(params, body, clenv, _)) =>
               if (args.length != params.length)
                 throw RuntimeError(paren, s"Expected ${params.length} arguments but got ${args.length}.")
@@ -155,7 +160,7 @@ class Interpreter {
           instance.fields.get(name.lexeme) match {
             case Some(property) => property
             case None =>
-              instance.klass.methods.get(name.lexeme) match {
+              instance.klass.method(name.lexeme) match {
                 case Some(TFunction(params, body, clenv, isInitializer)) =>
                   val local = new Environment(Some(clenv))
                   local.define("this", instance)
@@ -165,9 +170,9 @@ class Interpreter {
               }
           }
         case klass: TClass =>
-          klass.staticMethods.get(name.lexeme) match {
+          klass.staticMethod(name.lexeme) match {
             case Some(method) => method
-            case None => throw RuntimeError(name, s"Undefined static method ${name.lexeme}.")
+            case None         => throw RuntimeError(name, s"Undefined static method ${name.lexeme}.")
           }
         case _ =>
           throw RuntimeError(name, "Only instances have properties.")

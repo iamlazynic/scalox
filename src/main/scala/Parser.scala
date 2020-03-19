@@ -35,9 +35,16 @@ class Parser(tokens: Vector[Token]) {
     statement
   }
 
-  // class → IDENTIFIER "{" ( "class" )? function* "}"
+  // class → IDENTIFIER ( "<" IDENTIFIER )? "{" ( "class" )? function* "}"
   private def classDeclaration(): Stmt = {
     val name = consume(TokenType.IDENTIFIER, "Expect class name.")
+    val superclass =
+      if (matc(TokenType.LESS)) {
+        consume(TokenType.IDENTIFIER, "Expect superclass name.")
+        Some(Variable(previous, Expr.index))
+      } else {
+        None
+      }
     consume(TokenType.LEFT_BRACE, "Expect '{' before class body.")
     var methods: Vector[Function]       = Vector()
     var staticMethods: Vector[Function] = Vector()
@@ -46,7 +53,7 @@ class Parser(tokens: Vector[Token]) {
       else methods = methods :+ function("method")
     }
     consume(TokenType.RIGHT_BRACE, "Expect '}' after class body.")
-    Class(name, staticMethods, methods)
+    Class(name, superclass, staticMethods, methods)
   }
 
   // function → IDENTIFIER "(" parameters? ")" block
@@ -158,7 +165,7 @@ class Parser(tokens: Vector[Token]) {
     Expression(expr)
   }
 
-  // var → "var" identifier "=" expression
+  // var → "var" identifier ( "=" expression )?
   private def varDeclaration(): Stmt = {
     val name: Token = consume(TokenType.IDENTIFIER, "Expect variable name.")
     val initializer: Option[Expr] =

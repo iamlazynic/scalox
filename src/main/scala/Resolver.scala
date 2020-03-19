@@ -33,8 +33,8 @@ class Resolver(interpreter: Interpreter) {
     case Block(statements) => beginScope(); resolve(statements); endScope()
     case Break(keyword) =>
       if (!currentLoop) Lox.error(keyword, "Break from loops only.")
-    case Class(name, staticMethods, methods) =>
-      resolveClass(name,staticMethods, methods)
+    case Class(name, superclass, staticMethods, methods) =>
+      resolveClass(name, superclass, staticMethods, methods)
     case Expression(expr) => resolve(expr)
     case Function(name, params, body) =>
       declare(name); define(name); resolveFn(params, body, FunctionType.FUNCTION)
@@ -94,11 +94,19 @@ class Resolver(interpreter: Interpreter) {
     currentFunc = enclosingFunc
   }
 
-  private def resolveClass(name: Token, staticMethods: Vector[Function], methods: Vector[Function]): Unit = {
+  private def resolveClass(name: Token,
+                           superclass: Option[Variable],
+                           staticMethods: Vector[Function],
+                           methods: Vector[Function]): Unit = {
     val enclosingClass = currentClass
     currentClass = ClassType.CLASS
     declare(name)
     define(name)
+    superclass.foreach(variable => {
+      if (variable.name.lexeme == name.lexeme)
+        Lox.error(variable.name, "A class cannot inherit from itself.")
+      resolve(variable)
+    })
     beginScope()
     scopes.head.put("this", true)
     for (method <- staticMethods) {
