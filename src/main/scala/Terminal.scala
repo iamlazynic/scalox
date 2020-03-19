@@ -25,13 +25,9 @@ object TClass {
 case class TNumber(value: Double)   extends Terminal
 case class TString(value: String)   extends Terminal
 case class TBoolean(value: Boolean) extends Terminal
-case class TFunction(params: Vector[Token],
-                     body: Vector[Stmt],
-                     env: Environment,
-                     isInitializer: Boolean)
+case class TFunction(params: Vector[Token], body: Vector[Stmt], env: Environment, isInitializer: Boolean)
     extends Terminal
-case class TClass(name: String, methods: mutable.HashMap[String, TFunction], index: Int)
-    extends Terminal
+case class TClass(name: String, methods: mutable.HashMap[String, TFunction], index: Int) extends Terminal
 case class TInstance(klass: TClass, index: Int) extends Terminal {
   val fields = new mutable.HashMap[String, Terminal]()
 }

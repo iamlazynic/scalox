@@ -65,8 +65,7 @@ class Interpreter {
     }
   }
 
-  private def closure(env: Environment)(params: Vector[Token], body: Vector[Stmt])(
-      args: Seq[Terminal]): Terminal = {
+  private def closure(env: Environment)(params: Vector[Token], body: Vector[Stmt])(args: Seq[Terminal]): Terminal = {
     val local = new Environment(Some(env))
     for (i <- params.indices) local.define(params(i).lexeme, args(i))
     try executeSequence(local)(body)
@@ -106,9 +105,8 @@ class Interpreter {
                 case (TString(ls), TString(rs)) => TString(ls + rs)
                 case (l: TString, r: TNumber)   => TString(l.toString + r.toString)
                 case _ =>
-                  throw RuntimeError(
-                    op,
-                    "Operands must be pair (number, number), (string, string), or (string, number).")
+                  throw RuntimeError(op,
+                                     "Operands must be pair (number, number), (string, string), or (string, number).")
               }
             case TokenType.STAR          => TNumber(strip(lv) * strip(rv))
             case TokenType.SLASH         => TNumber(strip(lv) / strip(rv))
@@ -126,8 +124,7 @@ class Interpreter {
       evaluate(env)(callee) match {
         case TFunction(params, body, clenv, isInitializer) =>
           if (args.length != params.length)
-            throw RuntimeError(paren,
-                               s"Expected ${params.length} arguments but got ${args.length}.")
+            throw RuntimeError(paren, s"Expected ${params.length} arguments but got ${args.length}.")
           val ret = closure(clenv)(params, body)(args.map(evaluate(env)))
           if (isInitializer) clenv.getAt(0, "this") else ret
         case klass: TClass =>
@@ -135,8 +132,7 @@ class Interpreter {
           klass.methods.get("init") match {
             case Some(TFunction(params, body, clenv, _)) =>
               if (args.length != params.length)
-                throw RuntimeError(paren,
-                                   s"Expected ${params.length} arguments but got ${args.length}.")
+                throw RuntimeError(paren, s"Expected ${params.length} arguments but got ${args.length}.")
               val local = new Environment(Some(clenv))
               local.define("this", instance)
               closure(local)(params, body)(args.map(evaluate(env)))

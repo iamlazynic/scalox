@@ -213,11 +213,7 @@ class Parser(tokens: Vector[Token]) {
 
   // comparison → addition ( ( ">" | ">=" | "<" | "<=" ) addition )*
   private def comparison(): Expr =
-    patternAxALeft(addition,
-                   TokenType.GREATER,
-                   TokenType.GREATER_EQUAL,
-                   TokenType.LESS,
-                   TokenType.LESS_EQUAL)
+    patternAxALeft(addition, TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)
 
   // addition → multiplication ( ( "-" | "+" ) multiplication )*
   private def addition(): Expr =
@@ -370,8 +366,8 @@ class Parser(tokens: Vector[Token]) {
       if (previous.typ == TokenType.SEMICOLON) return
 
       next.typ match {
-        case TokenType.CLASS | TokenType.FUN | TokenType.FOR | TokenType.IF | TokenType.PRINT |
-            TokenType.RETURN | TokenType.VAR | TokenType.WHILE =>
+        case TokenType.CLASS | TokenType.FUN | TokenType.FOR | TokenType.IF | TokenType.PRINT | TokenType.RETURN |
+            TokenType.VAR | TokenType.WHILE =>
           return
         case _ =>
       }
