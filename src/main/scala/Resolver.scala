@@ -11,7 +11,7 @@ object Resolver {
   }
   object ClassType extends Enumeration {
     type ClassType = Value
-    val NONE, CLASS = Value
+    val NONE, CLASS, SUBCLASS = Value
   }
 }
 
@@ -65,13 +65,18 @@ class Resolver(interpreter: Interpreter) {
     case Lambda(params, body, _)   => resolveFn(params, body, FunctionType.FUNCTION)
     case Literal(_, _)             =>
     case Set(obj, name, value, _)  => resolve(value); resolve(obj)
-    case Super(keyword, _, _)      => resolveLocal(expr, keyword)
-    case Unary(_, right, _)        => resolve(right)
+    case Super(keyword, _, _) =>
+      currentClass match {
+        case ClassType.NONE     => Lox.error(keyword, "Cannot use 'super' outside of a class.")
+        case ClassType.CLASS    => Lox.error(keyword, "Cannot use 'super' in a class with no superclass.")
+        case ClassType.SUBCLASS => resolveLocal(expr, keyword)
+      }
+    case Unary(_, right, _) => resolve(right)
     case This(keyword, _) =>
-      if (currentClass == ClassType.NONE)
-        Lox.error(keyword, "Cannot use 'this' outside of a class.")
-      else
-        resolveLocal(expr, keyword)
+      currentClass match {
+        case ClassType.NONE => Lox.error(keyword, "Cannot use 'this' outside of a class.")
+        case _              => resolveLocal(expr, keyword)
+      }
     case Variable(name, _) =>
       scopes match {
         case Nil =>
@@ -106,6 +111,7 @@ class Resolver(interpreter: Interpreter) {
     superclass.foreach(variable => {
       if (variable.name.lexeme == name.lexeme)
         Lox.error(variable.name, "A class cannot inherit from itself.")
+      currentClass = ClassType.SUBCLASS
       resolve(variable)
     })
     beginScope()
